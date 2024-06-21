@@ -1,0 +1,63 @@
+joint_state_controller:
+    type: joint_state_controller/JointStateController
+    publish_rate: 100
+
+LF_HAA_controller:
+    type: effort_controllers/JointPositionController
+    joint: LF_HAA
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+LF_HFE_controller:
+    type: effort_controllers/JointPositionController
+    joint: LF_HFE
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+LF_KFE_controller:
+    type: effort_controllers/JointPositionController
+    joint: LF_KFE
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+RF_HAA_controller:
+    type: effort_controllers/JointPositionController
+    joint: RF_HAA
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+RF_HFE_controller:
+    type: effort_controllers/JointPositionController
+    joint: RF_HFE
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+RF_KFE_controller:
+    type: effort_controllers/JointPositionController
+    joint: RF_KFE
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+LH_HAA_controller:
+    type: effort_controllers/JointPositionController
+    joint: LH_HAA
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+LH_HFE_controller:
+    type: effort_controllers/JointPositionController
+    joint: LH_HFE
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+LH_KFE_controller:
+    type: effort_controllers/JointPositionController
+    joint: LH_KFE
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+RH_HAA_controller:
+    type: effort_controllers/JointPositionController
+    joint: RH_HAA
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+RH_HFE_controller:
+    type: effort_controllers/JointPositionController
+    joint: RH_HFE
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}
+
+RH_KFE_controller:
+    type: effort_controllers/JointPositionController
+    joint: RH_KFE
+    pid: {p: 150.0, i: 10.0, d: 15.0, i_clamp_min: -10000000, i_clamp_max: 10000000}

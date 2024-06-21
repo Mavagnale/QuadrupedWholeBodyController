@@ -1,0 +1,6 @@
+[submodule "lib/qpOASES"]
+	path = lib/qpOASES
+	url = https://github.com/coin-or/qpOASES.git
+[submodule "lib/idyntree"]
+	path = lib/idyntree
+	url = https://github.com/robotology/idyntree.git

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+
+    <!-- Name of the robot description parameter -->
+    <arg name="description_name" default="anymal_description" />
+    <!-- Set robot description path -->
+    <arg name="description_file" default="$(find anymal_wbc)/urdf/anymal.urdf" />
+    <!-- Joint state topic name -->
+    <arg name="joint_states_topic" default="/joint_states" />
+
+    <!-- Load robot description -->
+    <include file="$(find anymal_wbc)/launch/load.launch">
+        <arg name="description_name" value="$(arg description_name)" />
+        <arg name="description_file" value="$(arg description_file)" />
+    </include>
+
+    <!-- Joint state publisher -->
+    <node name="joint_state_publisher" pkg="joint_state_publisher_gui"
+        type="joint_state_publisher_gui" output="screen">
+        <param name="use_gui" value="true" />
+        <param name="rate" value="100" />
+        <remap from="robot_description" to="$(arg description_name)" />
+        <remap from="joint_states" to="$(arg joint_states_topic)" />
+    </node>
+
+    <!-- Robot state publisher -->
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"
+        output="screen">
+        <param name="publish_frequency" value="100" />
+        <param name="use_tf_static" value="true" />
+        <remap from="robot_description" to="$(arg description_name)" />
+        <remap from="joint_states" to="$(arg joint_states_topic)" />
+    </node>
+
+    <!-- these are the arguments you can pass this launch file, for example paused:=true -->
+    <arg name="world" value="$(find gazebo_ros)/launch/empty_world.launch" />
+    <arg name="pause" default="true" />
+    <arg name="gui" default="true" />
+    <arg name="debug" default="false" />
+
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="debug" value="$(arg debug)" />
+        <arg name="gui" value="$(arg gui)" />
+        <arg name="paused" value="$(arg pause)" />
+    </include>
+
+    <param name="robot_description" textfile="$(find anymal_wbc)/urdf/anymal.urdf" />
+
+    <!-- Robot -->
+    <node name="anymal_spawn" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+        args="
+        -urdf -param robot_description
+        -model anymalModel
+        -x 0.0
+        -y 0.0
+        -z 2.0" />
+
+
+    <!-- Controller-->
+    <arg name="controllers"
+        default="joint_state_controller
+                                  LF_HAA_controller
+                                  LF_HFE_controller
+                                  LF_KFE_controller
+                                  RF_HAA_controller
+                                  RF_HFE_controller
+                                  RF_KFE_controller
+                                  LH_HAA_controller
+                                  LH_HFE_controller
+                                  LH_KFE_controller
+                                  RH_HAA_controller
+                                  RH_HFE_controller
+                                  RH_KFE_controller" />
+
+    <!-- Load joint controller configurations from YAML file to parameter server -->
+    <rosparam file="$(find anymal_wbc)/config/controllers.yaml" command="load" ns="/anymal" />
+
+    <!-- Load the controllers -->
+    <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
+        output="screen" ns="/anymal" args="$(arg controllers)" />
+
+</launch>
