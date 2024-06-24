@@ -17,6 +17,8 @@
 // qpOASES
 #include <qpOASES.hpp>
 
+const int numberOfJoints = 12;
+
 class WholeBodyController
 {
     public:
@@ -29,7 +31,10 @@ class WholeBodyController
 		void floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg);
 		void jointStateCallback(sensor_msgs::JointState jointStateMsg);
         void controlLoop();
-        
+
+
+        Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> computeTransformationMatrix();
+        Eigen::Matrix<double,12,6+numberOfJoints> computeStanceJacobian();
 
     private:
         ros::NodeHandle nh_;
@@ -44,7 +49,7 @@ class WholeBodyController
         iDynTree::ModelLoader mdlLoader_;
         iDynTree::KinDynComputations kinDynComp_;
         iDynTree::Model model_;
-        int jointIndex_[12];
+        int jointIndex_[numberOfJoints];
 
 
         // state variables
@@ -54,6 +59,9 @@ class WholeBodyController
         Eigen::VectorXd jointVel_;
         Eigen::Vector3d gravity_;
 
+        // model matrices
+        Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> centroidMassMatrix_;
+        Eigen::Matrix<double,12,6+numberOfJoints> centroidStanceJacobian_;
 };
 
 #endif

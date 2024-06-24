@@ -1,5 +1,14 @@
 #include "WholeBodyController.h"
 
+Eigen::Matrix3d skewOperator( Eigen::Vector3d v )
+{
+    Eigen::Matrix3d S;
+    S << 0.0 , -v(2) ,  v(1),
+         v(2),  0.0  , -v(0),
+        -v(1),  v(0) ,  0.0 ; 
+    return S;
+}
+
 WholeBodyController::WholeBodyController() : initStatus_(1) , firstJointStateCallback_(true)
 {
     std::string modelFile = ros::package::getPath("anymal_wbc") + "/urdf/anymal.urdf";
@@ -18,8 +27,8 @@ WholeBodyController::WholeBodyController() : initStatus_(1) , firstJointStateCal
 
     model_ = kinDynComp_.model();
 
-    jointPos_.resize(model_.getNrOfDOFs());
-    jointVel_.resize(model_.getNrOfDOFs());
+    jointPos_.resize(numberOfJoints);
+    jointVel_.resize(numberOfJoints);
 
     floatingBaseStateSub_ = nh_.subscribe("/gazebo/model_states" , 0 , &WholeBodyController::floatingBaseStateCallback , this);
     jointStateSub_ = nh_.subscribe("/anymal/joint_states" , 0 , &WholeBodyController::jointStateCallback , this);
@@ -64,10 +73,10 @@ void WholeBodyController::floatingBaseStateCallback(gazebo_msgs::ModelStates mod
 
 void WholeBodyController::jointStateCallback(sensor_msgs::JointState jointStateMsg)
 {
-    // make sure that the order of the joints from the msg is the same as the model
+    // make sure that the order of the joints from the msg is the same as the model (LH-LF-RF-RH)
     if (firstJointStateCallback_)
     {
-        for (int i = 0; i < model_.getNrOfDOFs(); i++)
+        for (int i = 0; i < numberOfJoints; i++)
         {
             int k = 0;
             while (jointStateMsg.name[k] != model_.getJointName(i))
@@ -76,10 +85,10 @@ void WholeBodyController::jointStateCallback(sensor_msgs::JointState jointStateM
             }
             jointIndex_[i] = k;
         }
+        firstJointStateCallback_ = false;
     }
-    firstJointStateCallback_ = false;
 
-    for (int i = 0; i < model_.getNrOfDOFs(); i++)
+    for (int i = 0; i < numberOfJoints; i++)
     {    
         jointPos_(i) = jointStateMsg.position[jointIndex_[i]];
         jointVel_(i) = jointStateMsg.velocity[jointIndex_[i]];
@@ -90,12 +99,67 @@ void WholeBodyController::jointStateCallback(sensor_msgs::JointState jointStateM
 void WholeBodyController::updateState()
 {
     kinDynComp_.setRobotState( T_world_base_, jointPos_, baseVel_, jointVel_, gravity_);
+
+    Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> transformationMatrix = computeTransformationMatrix();
+
+    Eigen::MatrixXd massMatrix(6+numberOfJoints, 6+numberOfJoints);
+    kinDynComp_.getFreeFloatingMassMatrix(iDynTree::make_matrix_view(massMatrix));
+    centroidMassMatrix_ =  transformationMatrix.inverse().transpose() * massMatrix * transformationMatrix.inverse();
+
+    centroidStanceJacobian_ = computeStanceJacobian() * transformationMatrix.inverse();
+}
+
+
+Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> WholeBodyController::computeTransformationMatrix()
+{
+    Eigen::Vector3d centerOfMassPosition = iDynTree::toEigen(kinDynComp_.getCenterOfMassPosition());
+    Eigen::Vector3d basePosition = T_world_base_.block<3,1>(0,3);
+    Eigen::Vector3d p_bc = centerOfMassPosition - basePosition;
+
+    Eigen::Matrix<double,6,6> centroidToBaseAdjointMatrix;
+    centroidToBaseAdjointMatrix << Eigen::Matrix3d::Identity() , skewOperator(p_bc) ,
+                                   Eigen::Matrix3d::Zero()     , Eigen::Matrix3d::Identity();
+
+    Eigen::MatrixXd massMatrix(6+numberOfJoints, 6+numberOfJoints);
+    kinDynComp_.getFreeFloatingMassMatrix(iDynTree::make_matrix_view(massMatrix));
+    Eigen::Matrix<double,6,6> baseMassMatrix =  massMatrix.block<6,6>(0,0);
+    Eigen::Matrix<double,6,numberOfJoints> baseJointsMassMatrix =  massMatrix.block<6,numberOfJoints>(0,6);
+
+    Eigen::Matrix<double,6,6+numberOfJoints> selectionMatrix;
+    selectionMatrix << Eigen::Matrix<double,6,6>::Identity() , Eigen::Matrix<double,6,numberOfJoints>::Zero();
+
+    // Note: the iDynTree method getCenterOfMassJacobian only computes the positional part of the CoM jacobian,
+    //       in order to also obtain the rotational part (assuming frame oriented as the world frame), the following computation is done:
+
+    Eigen::Matrix<double,6,6+numberOfJoints> centerOfMassFullJacobian = 
+                            centroidToBaseAdjointMatrix.inverse() * baseMassMatrix.inverse() * selectionMatrix * massMatrix;
+
+    Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> transformationMatrix;
+    transformationMatrix << centerOfMassFullJacobian , Eigen::Matrix<double,numberOfJoints,6>::Zero() , Eigen::Matrix<double,numberOfJoints,numberOfJoints>::Identity();
+
+    return transformationMatrix; 
+}
+
+Eigen::Matrix<double,12,6+numberOfJoints> WholeBodyController::computeStanceJacobian()
+{
+    Eigen::MatrixXd fullStanceJacobian(12, 6+numberOfJoints);
+    Eigen::MatrixXd footStanceJacobian(6, 6+numberOfJoints);
+    kinDynComp_.getFrameFreeFloatingJacobian(kinDynComp_.getFrameIndex("LH_FOOT"),iDynTree::make_matrix_view(footStanceJacobian));
+    fullStanceJacobian.block<3,6+numberOfJoints>(0,0) = footStanceJacobian.block<3,6+numberOfJoints>(0,0);
+    kinDynComp_.getFrameFreeFloatingJacobian(kinDynComp_.getFrameIndex("LF_FOOT"),iDynTree::make_matrix_view(footStanceJacobian));
+    fullStanceJacobian.block<3,6+numberOfJoints>(3,0) = footStanceJacobian.block<3,6+numberOfJoints>(0,0);
+    kinDynComp_.getFrameFreeFloatingJacobian(kinDynComp_.getFrameIndex("RF_FOOT"),iDynTree::make_matrix_view(footStanceJacobian));
+    fullStanceJacobian.block<3,6+numberOfJoints>(6,0) = footStanceJacobian.block<3,6+numberOfJoints>(0,0);
+    kinDynComp_.getFrameFreeFloatingJacobian(kinDynComp_.getFrameIndex("RH_FOOT"),iDynTree::make_matrix_view(footStanceJacobian));
+    fullStanceJacobian.block<3,6+numberOfJoints>(9,0) = footStanceJacobian.block<3,6+numberOfJoints>(0,0);
+
+    return fullStanceJacobian;
 }
 
 
 void WholeBodyController::run()
 {
-    //starts the control loop thread
+    // starts the control loop thread
 	boost::thread ctrl_loop_t ( &WholeBodyController::controlLoop, this);     
 	ros::spin();	    
 }
@@ -103,137 +167,20 @@ void WholeBodyController::run()
 
 void WholeBodyController::controlLoop()
 {
-    updateState();
     ros::Rate loopRate(1.0);
     while (ros::ok())
     {
+        updateState();
         std::cout << "T_world_base_:\n" << T_world_base_ << "\n\n";
         std::cout << "jointPos_:\n" << jointPos_ << "\n\n";
         std::cout << "baseVel_:\n" << baseVel_ << "\n\n";
         std::cout << "jointVel_:\n" << jointVel_ << "\n\n";
-        std::cout << "gravity_:\n" << gravity_ << "\n\n";
+//        std::cout << "centroidStanceJacobian_:\n" << centroidStanceJacobian_ << "\n\n";
+//        std::cout << "centroidMassMatrix_:_\n" << centroidMassMatrix_ << "\n\n";
         loopRate.sleep();
-        test();
     }
 }
 
-
 void WholeBodyController::test()
 {
-    /*
-    Eigen::MatrixXd massMatrix(6+model_.getNrOfDOFs(), 6+model_.getNrOfDOFs());
-    kinDynComp_.getFreeFloatingMassMatrix(iDynTree::make_matrix_view(massMatrix));
-    std::cout << "massMatrix:\n" << massMatrix << "\n\n";
-
-    Eigen::Vector3d centerOfMass = iDynTree::toEigen(kinDynComp_.getCenterOfMassPosition());
-    std::cout << "Center of mass:\n" << centerOfMass << "\n\n";
-
-    Eigen::Vector3d p_bc = centerOfMass - T_world_base_.block<3,1>(0,3);
-    std::cout << "p_bc:\n" << p_bc << "\n\n";
-
-    Eigen::MatrixXd centerOfMassJacobian(3, 6+model_.getNrOfDOFs());
-    kinDynComp_.getCenterOfMassJacobian(iDynTree::make_matrix_view(centerOfMassJacobian));
-    std::cout << "centerOfMassJacobian:\n" << centerOfMassJacobian << "\n\n";
-
-    Eigen::MatrixXd freeFloatingJacobian(6, 6+model_.getNrOfDOFs());
-    kinDynComp_.getFrameFreeFloatingJacobian("base",iDynTree::make_matrix_view(freeFloatingJacobian));
-    std::cout << "freeFloatingJacobian:\n" << freeFloatingJacobian << "\n\n";
-
-    Eigen::MatrixXd J_bc = centerOfMassJacobian.block<3,12>(0,6) - freeFloatingJacobian.block<3,12>(0,6);
-    std::cout << "J_bc:\n" << J_bc << "\n\n";
-
-
-    Eigen::MatrixXd transformMatrixInv(6+model_.getNrOfDOFs() , 6+model_.getNrOfDOFs());
-    transformMatrixInv.setZero();
-    transformMatrixInv.block<3,3>(0,0).setIdentity();
-    transformMatrixInv.block<3,3>(0,3) = skewOperator(p_bc);
-    transformMatrixInv.block<3,12>(0,6) = -J_bc;
-    transformMatrixInv.block<3,3>(3,3).setIdentity();
-    transformMatrixInv.block<12,12>(6,6).setIdentity();
-    std::cout << "transformMatrixInv:\n" << transformMatrixInv << "\n\n";
-
-    Eigen::MatrixXd massMatrixCenterOfMass(6+model_.getNrOfDOFs() , 6+model_.getNrOfDOFs());
-    massMatrixCenterOfMass.setZero();
-    massMatrixCenterOfMass = transformMatrixInv.transpose() * massMatrix * transformMatrixInv;
-    std::cout << "massMatrixCenterOfMass:\n" << massMatrixCenterOfMass << "\n\n";
-
-
-    // state variables
-    Eigen::Matrix4d T_world_base_1;
-    Eigen::VectorXd jointPos_1;
-    Eigen::Matrix<double,6,1> baseVel_1;
-    Eigen::VectorXd jointVel_1 ;
-    Eigen::Vector3d gravity_1;
-
-    jointPos_1.resize(model_.getNrOfDOFs());
-    jointVel_1.resize(model_.getNrOfDOFs());
-
-
-    kinDynComp_.getRobotState(T_world_base_1,jointPos_1,baseVel_1,jointVel_1,gravity_1);
-    std::cout << "T_world_base_1:\n" << T_world_base_1 << "\n\n";
-    std::cout << "jointPos_1:\n" << jointPos_1 << "\n\n";
-    std::cout << "baseVel_1:\n" << baseVel_1 << "\n\n";
-    std::cout << "jointVel_1:\n" << jointVel_1 << "\n\n";
-    std::cout << "gravity_1:\n" << gravity_1 << "\n\n";
-    */
-
-   	USING_NAMESPACE_QPOASES
-
-	/* Setup data of first QP. */
-	real_t H[2*2] = { 1.0, 0.0, 0.0, 0.5 };
-	real_t A[1*2] = { 1.0, 1.0 };
-	real_t g[2] = { 1.5, 1.0 };
-	real_t lb[2] = { 0.5, -2.0 };
-	real_t ub[2] = { 5.0, 2.0 };
-	real_t lbA[1] = { -1.0 };
-	real_t ubA[1] = { 2.0 };
-
-	/* Setup data of second QP. */
-	real_t g_new[2] = { 1.0, 1.5 };
-	real_t lb_new[2] = { 0.0, -1.0 };
-	real_t ub_new[2] = { 5.0, -0.5 };
-	real_t lbA_new[1] = { -2.0 };
-	real_t ubA_new[1] = { 1.0 };
-
-
-	/* Setting up QProblem object. */
-	QProblem example( 2,1 );
-
-	Options options;
-	example.setOptions( options );
-
-	/* Solve first QP. */
-	int_t nWSR = 10;
-	example.init( H,g,A,lb,ub,lbA,ubA, nWSR );
-
-	/* Get and print solution of first QP. */
-	real_t xOpt[2];
-	real_t yOpt[2+1];
-	example.getPrimalSolution( xOpt );
-	example.getDualSolution( yOpt );
-	printf( "\nxOpt = [ %e, %e ];  yOpt = [ %e, %e, %e ];  objVal = %e\n\n", 
-			xOpt[0],xOpt[1],yOpt[0],yOpt[1],yOpt[2],example.getObjVal() );
-	
-	/* Solve second QP. */
-	nWSR = 10;
-	example.hotstart( g_new,lb_new,ub_new,lbA_new,ubA_new, nWSR );
-
-	/* Get and print solution of second QP. */
-	example.getPrimalSolution( xOpt );
-	example.getDualSolution( yOpt );
-	printf( "\nxOpt = [ %e, %e ];  yOpt = [ %e, %e, %e ];  objVal = %e\n\n", 
-			xOpt[0],xOpt[1],yOpt[0],yOpt[1],yOpt[2],example.getObjVal() );
-
-	example.printOptions();
-
-}
-
-
-Eigen::Matrix3d skewOperator( Eigen::Vector3d v)
-{
-    Eigen::Matrix3d S;
-    S << 0.0 , -v(2) ,  v(1),
-         v(2),  0.0  , -v(0),
-        -v(1),  v(0) ,  0.0 ; 
-    return S;
 }
