@@ -291,13 +291,20 @@ void WholeBodyController::solveQP()
     qpOASES::real_t xOpt[qpNumberOfVariables];
 	quadraticProblem_.getPrimalSolution( xOpt );
 
+
+    for (int i = 0 ; i < qpNumberOfVariables ; i++)
+    {
+        qpSoln_[i] = xOpt[i];
+    }
+
 /*
     for (int i = 0 ; i < qpNumberOfVariables ; i++)
     {
         std::cout << "xOpt[" << i << "]: " << xOpt[i] << std::endl;
-        qpSoln_[i] = xOpt[i];
     }
 */
+
+
 }
 
 
