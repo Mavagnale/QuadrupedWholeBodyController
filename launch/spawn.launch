@@ -53,24 +53,25 @@
         -model anymalModel
         -x 0.0
         -y 0.0
-        -z 2.0" />
+        -z 0.61
+        -J LF_HAA 0.03
+        -J LF_HFE 0.4
+        -J LF_KFE -0.8
+        -J RF_HAA -0.03
+        -J RF_HFE 0.4
+        -J RF_KFE -0.8
+        -J LH_HAA 0.03
+        -J LH_HFE -0.4
+        -J LH_KFE 0.8
+        -J RH_HAA -0.03
+        -J RH_HFE -0.4
+        -J RH_KFE 0.8" />
 
 
     <!-- Controller-->
-    <arg name="controllers"
+        <arg name="controllers"
         default="joint_state_controller
-                                  LF_HAA_controller
-                                  LF_HFE_controller
-                                  LF_KFE_controller
-                                  RF_HAA_controller
-                                  RF_HFE_controller
-                                  RF_KFE_controller
-                                  LH_HAA_controller
-                                  LH_HFE_controller
-                                  LH_KFE_controller
-                                  RH_HAA_controller
-                                  RH_HFE_controller
-                                  RH_KFE_controller" />
+                 joint_effort_group_controller" />
 
     <!-- Load joint controller configurations from YAML file to parameter server -->
     <rosparam file="$(find anymal_wbc)/config/controllers.yaml" command="load" ns="/anymal" />

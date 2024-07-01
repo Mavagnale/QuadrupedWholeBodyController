@@ -66,6 +66,7 @@
         "cfenv": "cpp",
         "typeindex": "cpp",
         "variant": "cpp",
-        "csignal": "cpp"
+        "csignal": "cpp",
+        "*.ipp": "cpp"
     }
 }
