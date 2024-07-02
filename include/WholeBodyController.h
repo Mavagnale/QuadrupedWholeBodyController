@@ -37,6 +37,7 @@ class WholeBodyController
         void test();
 		void floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg);
 		void jointStateCallback(sensor_msgs::JointState jointStateMsg);
+		void centerOfMassReferenceCallback(std_msgs::Float64MultiArray refMsg);
         void setInitialState();
         void computeJointTorques();
         void computeDerivatives();
@@ -54,6 +55,7 @@ class WholeBodyController
 
         ros::Subscriber floatingBaseStateSub_;
         ros::Subscriber jointStateSub_;
+        ros::Subscriber centerOfMassReferenceSub_;
 
         bool initStatus_;
         bool firstJointStateCallback_;
@@ -71,6 +73,9 @@ class WholeBodyController
         Eigen::Matrix<double,6,1> baseVel_;
         Eigen::VectorXd jointVel_;
         Eigen::Vector3d gravity_;
+
+        // references
+        Eigen::Vector<double,6> desiredPose_;
 
         // model matrices
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> massMatrix_;

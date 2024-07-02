@@ -58,6 +58,7 @@ WholeBodyController::WholeBodyController() : initStatus_(1) , firstJointStateCal
 
     floatingBaseStateSub_ = nh_.subscribe("/gazebo/model_states" , 0 , &WholeBodyController::floatingBaseStateCallback , this);
     jointStateSub_ = nh_.subscribe("/anymal/joint_states" , 0 , &WholeBodyController::jointStateCallback , this);
+    centerOfMassReferenceSub_ = nh_.subscribe("/anymal/com_reference" , 0 , &WholeBodyController::centerOfMassReferenceCallback , this);
 
     jointPos_.resize(numberOfJoints);
     jointVel_.resize(numberOfJoints);
@@ -91,8 +92,19 @@ void WholeBodyController::setInitialState()
     transformationMatrix_.setIdentity();
     oldTransformationMatrix_.setIdentity();
     oldCentroidStanceJacobian_.setZero();
+
+    desiredPose_ = { 0.0 , 0.0 , 0.48 , 0.0 , 0.0 , 0.0 };
+
 }
 
+void WholeBodyController::centerOfMassReferenceCallback(std_msgs::Float64MultiArray refMsg)
+{
+    std::cout <<"CoM Reference acquired" << std::endl;   
+    for (int i = 0 ; i < 6 ; i++)
+    {
+        desiredPose_(i) = refMsg.data[i];
+    }
+}
 
 void WholeBodyController::floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg)
 {
@@ -232,12 +244,11 @@ void WholeBodyController::solveQP()
 
 
     Eigen::Vector<double,6> desiredWrench;
-    Eigen::Matrix<double,6,6> Kp = 8000*Eigen::Matrix<double,6,6>::Identity();
-    Eigen::Matrix<double,6,6> Kd = 800*Eigen::Matrix<double,6,6>::Identity();
+    Eigen::Matrix<double,6,6> Kp = 6000*Eigen::Matrix<double,6,6>::Identity();
+    Eigen::Matrix<double,6,6> Kd = 600*Eigen::Matrix<double,6,6>::Identity();
 
 
-    Eigen::Vector<double,6> desiredPose = { 0.0 , 0.0 , 0.48 , 0.0 , 0.0 , 0.0 };
-    Eigen::Vector<double,6> desiredBaseVelocity = { 0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0 };
+    Eigen::Vector<double,6> desiredCoMVelocity = { 0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0 };
 
     Eigen::Matrix3d currentOrientation = T_world_base_.block<3,3>(0,0);
     Eigen::Vector<double,3> currentAttitude = eulAnglesRPY(currentOrientation);    
@@ -245,12 +256,12 @@ void WholeBodyController::solveQP()
     Eigen::Vector<double,6> currentPose;
     currentPose << iDynTree::toEigen(kinDynComp_.getCenterOfMassPosition()) , currentAttitude;
 
-    Eigen::Vector<double,6> currentBaseVelocity;
-    currentBaseVelocity << iDynTree::toEigen(kinDynComp_.getCenterOfMassVelocity()) , baseVel_.block<3,1>(3,0);
+    Eigen::Vector<double,6> currentCoMVelocity;
+    currentCoMVelocity << iDynTree::toEigen(kinDynComp_.getCenterOfMassVelocity()) , baseVel_.block<3,1>(3,0);
 
     Eigen::Vector<double,6> gravityWrench = {0.0 , 0.0 , model_.getTotalMass()*gravityAcceleration , 0.0 , 0.0 , 0.0 };
 
-    desiredWrench = -Kp*(currentPose - desiredPose) - Kd*(currentBaseVelocity - desiredBaseVelocity) + gravityWrench; //todo: add feedforward acceleration term here
+    desiredWrench = -Kp*(currentPose - desiredPose_) - Kd*(currentCoMVelocity - desiredCoMVelocity) + gravityWrench; //todo: add feedforward acceleration term here
 
     Eigen::Matrix<double,qpNumberOfVariables,qpNumberOfVariables, Eigen::RowMajor> qpMatrixH =
                         groundReactionSelectionMatrix.transpose() * centroidStanceJacobianCoM_ *
@@ -272,7 +283,7 @@ void WholeBodyController::solveQP()
                  0.0 ,
                  0.0 ,
                  0.0 ,
-                - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentBaseVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ;
+                - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ;
 
 	qpOASES::int_t nWSR = 100;
     qpOASES::Options myOptions;
@@ -338,11 +349,12 @@ void WholeBodyController::computeJointTorques()
         commandMsg.data.push_back(actuationTorque(i));
     } 
 
+    /*
     for (int i = 0 ; i < numberOfJoints ; i++)
     {
         std::cout << "actuationTorque[" << i << "]: " << actuationTorque[i] << std::endl;
     }
-
+    */
     jointTorquePub_.publish(commandMsg);
 }
 
@@ -366,6 +378,12 @@ void WholeBodyController::controlLoop()
 //        std::cout << "jointVel_:\n" << jointVel_ << "\n\n";
 //        std::cout << "centroidStanceJacobian_:\n" << centroidStanceJacobian_ << "\n\n";
 //        std::cout << "centroidMassMatrix_:_\n" << centroidMassMatrix_ << "\n\n";
+        std::cout << "Desired com position:\n";
+        std::cout << desiredPose_.block<3,1>(0,0) << "\n\n";
+        std::cout << "Actual com position:\n";
+        std::cout << iDynTree::toEigen(kinDynComp_.getCenterOfMassPosition()) << "\n\n";
+        std::cout << "---------------------------" << "\n\n";
+
         rosRate.sleep();
     }
 }
