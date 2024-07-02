@@ -230,6 +230,28 @@ void WholeBodyController::computeDerivatives()
 
 }
 
+Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> WholeBodyController::computeNonSlidingConstraints()
+{
+    const Eigen::Vector3d tangentialVector1 = {1.0 , 0.0 , 0.0};
+    const Eigen::Vector3d tangentialVector2 = {0.0 , 1.0 , 0.0};
+    const Eigen::Vector3d normalVector = {0.0 , 0.0 , 1.0};
+
+    Eigen::Matrix<double,4,3> D;
+    D << (tangentialVector1 - friction*normalVector).transpose() ,
+        -(tangentialVector1 + friction*normalVector).transpose() ,
+         (tangentialVector2 - friction*normalVector).transpose() ,
+        -(tangentialVector2 + friction*normalVector).transpose() ;
+
+    Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> Dfr;
+    Dfr.setZero();
+    Dfr.block<4,3>(0,0) = D;
+    Dfr.block<4,3>(4,3) = D;
+    Dfr.block<4,3>(8,6) = D;
+    Dfr.block<4,3>(12,9) = D;
+
+    return Dfr;
+}
+
 
 void WholeBodyController::solveQP()
 {
@@ -272,18 +294,31 @@ void WholeBodyController::solveQP()
 
 
     Eigen::Matrix<double, qpNumberOfConstraints, qpNumberOfVariables, Eigen::RowMajor> qpMatrixA;
-    Eigen::Vector<double, qpNumberOfConstraints> qpMatrixb;
+    Eigen::Vector<double, qpNumberOfConstraints> qpMatrixbUB;
+    Eigen::Vector<double, qpNumberOfConstraints> qpMatrixbLB;
+
+    
+    Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> Dfr = computeNonSlidingConstraints();
 
     qpMatrixA << centroidMassMatrix_.block<6,6>(0,0) , Eigen::Matrix<double,6,numberOfJoints>::Zero() , -centroidStanceJacobianCoM_.transpose(),
-                 centroidStanceJacobianCoM_          , centroidStanceJacobianJoints_                  , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero(); 
+                 centroidStanceJacobianCoM_          , centroidStanceJacobianJoints_                  , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero(),
+                 Eigen::Matrix<double,4*numberOfLegs,6+numberOfJoints>::Zero() , Dfr;
 
-    qpMatrixb << 0.0 ,
+
+    qpMatrixbUB << 0.0 ,
                  0.0 ,
                 - model_.getTotalMass()*gravityAcceleration ,
                  0.0 ,
                  0.0 ,
                  0.0 ,
                 - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ;
+                Eigen::Vector<double,4*numberOfLegs>::Zero();
+                
+    qpMatrixbLB = qpMatrixbUB;
+    qpMatrixbLB.block<4*numberOfLegs,1>(6+3*numberOfLegs,0) = -qpOASES::INFTY*Eigen::Vector<double,4*numberOfLegs>::Ones();
+
+    std::cout << "qpMatrixbLB:\n" << qpMatrixbLB << "\n\n";
+    std::cout << "qpMatrixbUB:\n" << qpMatrixbUB << "\n\n";
 
 	qpOASES::int_t nWSR = 100;
     qpOASES::Options myOptions;
@@ -292,12 +327,12 @@ void WholeBodyController::solveQP()
 
     if (firstControllerIteration_)
     {
-        quadraticProblem_.init( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(), nullptr, nullptr, qpMatrixb.data(), qpMatrixb.data(), nWSR,0 );
+        quadraticProblem_.init( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(), nullptr, nullptr, qpMatrixbLB.data(), qpMatrixbUB.data(), nWSR,0 );
         firstControllerIteration_ = false;
     }
     else
     {
-        quadraticProblem_.hotstart( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(), nullptr, nullptr, qpMatrixb.data(), qpMatrixb.data(), nWSR,0 );
+        quadraticProblem_.hotstart( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(), nullptr, nullptr, qpMatrixbLB.data(), qpMatrixbUB.data(), nWSR,0 );
     }
     qpOASES::real_t xOpt[qpNumberOfVariables];
 	quadraticProblem_.getPrimalSolution( xOpt );

@@ -22,8 +22,9 @@
 const int numberOfJoints = 12;
 const int numberOfLegs = 4;
 const double gravityAcceleration = 9.81;
-const int qpNumberOfVariables = 6 + numberOfJoints + 3*numberOfLegs;
-const int qpNumberOfConstraints = 6 + 3*numberOfLegs;
+const int qpNumberOfVariables = 6 + numberOfJoints + 3*numberOfLegs; // CoM accelerations + joints accelerations + ground reaction forces
+const int qpNumberOfConstraints = 6 + 3*numberOfLegs + 4*numberOfLegs; // dynamics constraints + stance feet constraints + non-sliding constraints 
+const double friction = 1;
 const double loopRate = 500;
 
 class WholeBodyController
@@ -46,6 +47,7 @@ class WholeBodyController
 
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> computeTransformationMatrix();
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> computeStanceJacobian();
+        Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> computeNonSlidingConstraints();
         void solveQP();
 
     private:

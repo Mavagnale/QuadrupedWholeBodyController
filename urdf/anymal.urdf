@@ -1973,4 +1973,32 @@
     </sensor>
   </gazebo>
 
+<gazebo reference="LF_FOOT">
+    <mu1>1</mu1>
+    <mu2>1</mu2>
+    <kp value="1e6" />
+    <kd value="1e6" />
+  </gazebo>
+
+<gazebo reference="LH_FOOT">
+    <mu1>1</mu1>
+    <mu2>1</mu2>
+    <kp value="1e6" />
+    <kd value="1e6" />
+  </gazebo>
+
+<gazebo reference="RF_FOOT">
+    <mu1>1</mu1>
+    <mu2>1</mu2>
+    <kp value="1e6" />
+    <kd value="1e6" />
+  </gazebo>
+
+<gazebo reference="RH_FOOT">
+    <mu1>1</mu1>
+    <mu2>1</mu2>
+    <kp value="1e6" />
+    <kd value="1e6" />
+  </gazebo>
+
 </robot>

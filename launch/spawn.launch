@@ -14,15 +14,6 @@
         <arg name="description_file" value="$(arg description_file)" />
     </include>
 
-    <!-- Joint state publisher -->
-    <node name="joint_state_publisher" pkg="joint_state_publisher_gui"
-        type="joint_state_publisher_gui" output="screen">
-        <param name="use_gui" value="true" />
-        <param name="rate" value="100" />
-        <remap from="robot_description" to="$(arg description_name)" />
-        <remap from="joint_states" to="$(arg joint_states_topic)" />
-    </node>
-
     <!-- Robot state publisher -->
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"
         output="screen">
