@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(iDynTree REQUIRED)
+find_package(Qt5Widgets REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -27,8 +28,15 @@ add_subdirectory(lib/idyntree)
 add_library(WholeBodyController src/WholeBodyController.cpp)
 target_link_libraries(WholeBodyController PRIVATE iDynTree::idyntree-high-level iDynTree::idyntree-estimation qpOASES ${catkin_LIBRARIES})
 
-add_executable(effortPublisher src/effortPublisher.cpp)
-target_link_libraries(effortPublisher ${catkin_LIBRARIES})
+add_executable(jointCmdPublisher src/jointCmdPublisher.cpp)
+target_link_libraries(jointCmdPublisher ${catkin_LIBRARIES})
+
+add_executable(sliderPublisher src/sliderPublisher.cpp src/sliderGui.cpp)
+
+target_link_libraries(sliderPublisher
+  ${catkin_LIBRARIES}
+  Qt5::Widgets
+)
 
 add_executable(main src/main.cpp)
 target_link_libraries(main WholeBodyController ${catkin_LIBRARIES})

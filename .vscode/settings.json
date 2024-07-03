@@ -67,6 +67,9 @@
         "typeindex": "cpp",
         "variant": "cpp",
         "csignal": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "qwidget": "cpp",
+        "qapplication": "cpp",
+        "qslider": "cpp"
     }
 }

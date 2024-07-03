@@ -98,4 +98,4 @@ class WholeBodyController
         Eigen::Vector<double,6+numberOfJoints+3*numberOfLegs> qpSoln_;
 };
 
-#endif
+#endif // WHOLE_BODY_CONTROLLER_H
