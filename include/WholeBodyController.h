@@ -23,7 +23,7 @@ const int numberOfJoints = 12;
 const int numberOfLegs = 4;
 const double gravityAcceleration = 9.81;
 const int qpNumberOfVariables = 6 + numberOfJoints + 3*numberOfLegs; // CoM accelerations + joints accelerations + ground reaction forces
-const int qpNumberOfConstraints = 6 + 3*numberOfLegs + 4*numberOfLegs; // dynamics constraints + stance feet constraints + non-sliding constraints 
+const int qpNumberOfConstraints = 6 + 3*numberOfLegs + 4*numberOfLegs + numberOfJoints; // dynamics constraints + stance feet constraints + non-sliding constraints + torque limit constraints
 const double friction = 1;
 const double loopRate = 500;
 const double maxTorque = 80;
@@ -103,6 +103,7 @@ class WholeBodyController
         // numerical derivation
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> oldTransformationMatrix_;
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> transformationMatrixDot_;
+        Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> transformationMatrixDotInverse_;
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> oldCentroidStanceJacobian_;
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> centroidStanceJacobianDot_;
 
