@@ -8,7 +8,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/base.dae"
+                <mesh filename="package://anymal_wbc/meshes/base.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -74,7 +74,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/top_shell.dae"
+                <mesh filename="package://anymal_wbc/meshes/top_shell.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -95,7 +95,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/bottom_shell.dae"
+                <mesh filename="package://anymal_wbc/meshes/bottom_shell.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -331,7 +331,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/face_shell.dae"
+                <mesh filename="package://anymal_wbc/meshes/face_shell.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -352,7 +352,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/face_shell.dae"
+                <mesh filename="package://anymal_wbc/meshes/face_shell.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -373,7 +373,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/battery.dae"
+                <mesh filename="package://anymal_wbc/meshes/battery.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -394,7 +394,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/docking_socket.dae"
+                <mesh filename="package://anymal_wbc/meshes/docking_socket.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -522,13 +522,13 @@
         <visual>
             <origin xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/lidar.dae" />
+                <mesh filename="package://anymal_wbc/meshes/lidar.dae" />
             </geometry>
         </visual>
         <visual>
             <origin xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/lidar_guard.dae" />
+                <mesh filename="package://anymal_wbc/meshes/lidar_guard.dae" />
             </geometry>
         </visual>
         <collision>
@@ -554,7 +554,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -592,7 +592,7 @@
         <visual>
             <origin rpy="0.0 0 0.0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/hip.dae"
+                <mesh filename="package://anymal_wbc/meshes/hip.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -622,7 +622,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -672,7 +672,7 @@
         <visual>
             <origin rpy="0 0 0.0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/thigh.dae"
+                <mesh filename="package://anymal_wbc/meshes/thigh.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -712,7 +712,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -756,7 +756,7 @@
         <visual>
             <origin rpy="0 0 0.0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/shank_l.dae"
+                <mesh filename="package://anymal_wbc/meshes/shank_l.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -789,7 +789,7 @@
         <visual>
             <origin rpy="0 0 0.0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/foot.dae"
+                <mesh filename="package://anymal_wbc/meshes/foot.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -822,7 +822,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -860,7 +860,7 @@
         <visual>
             <origin rpy="-3.141592653589793 0 0.0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/hip.dae"
+                <mesh filename="package://anymal_wbc/meshes/hip.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -890,7 +890,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -940,7 +940,7 @@
         <visual>
             <origin rpy="0 0 -3.141592653589793" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/thigh.dae"
+                <mesh filename="package://anymal_wbc/meshes/thigh.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -980,7 +980,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1024,7 +1024,7 @@
         <visual>
             <origin rpy="0 0 0.0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/shank_r.dae"
+                <mesh filename="package://anymal_wbc/meshes/shank_r.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1057,7 +1057,7 @@
         <visual>
             <origin rpy="0 0 -3.141592653589793" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/foot.dae"
+                <mesh filename="package://anymal_wbc/meshes/foot.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1091,7 +1091,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1129,7 +1129,7 @@
         <visual>
             <origin rpy="-3.141592653589793 0 -3.141592653589793" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/hip.dae"
+                <mesh filename="package://anymal_wbc/meshes/hip.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1159,7 +1159,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1209,7 +1209,7 @@
         <visual>
             <origin rpy="0 0 0.0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/thigh.dae"
+                <mesh filename="package://anymal_wbc/meshes/thigh.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1249,7 +1249,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1293,7 +1293,7 @@
         <visual>
             <origin rpy="0 0 -3.141592653589793" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/shank_r.dae"
+                <mesh filename="package://anymal_wbc/meshes/shank_r.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1326,7 +1326,7 @@
         <visual>
             <origin rpy="0 0 0.0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/foot.dae"
+                <mesh filename="package://anymal_wbc/meshes/foot.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1360,7 +1360,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1398,7 +1398,7 @@
         <visual>
             <origin rpy="0.0 0 -3.141592653589793" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/hip.dae"
+                <mesh filename="package://anymal_wbc/meshes/hip.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1428,7 +1428,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1478,7 +1478,7 @@
         <visual>
             <origin rpy="0 0 -3.141592653589793" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/thigh.dae"
+                <mesh filename="package://anymal_wbc/meshes/thigh.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1518,7 +1518,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/drive.dae"
+                <mesh filename="package://anymal_wbc/meshes/drive.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1562,7 +1562,7 @@
         <visual>
             <origin rpy="0 0 -3.141592653589793" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/shank_l.dae"
+                <mesh filename="package://anymal_wbc/meshes/shank_l.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1595,7 +1595,7 @@
         <visual>
             <origin rpy="0 0 -3.141592653589793" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/foot.dae"
+                <mesh filename="package://anymal_wbc/meshes/foot.dae"
                     scale="1.0 1.0 1.0" />
             </geometry>
         </visual>
@@ -1629,7 +1629,7 @@
     <!--    <visual>-->
     <!--      <origin rpy="0 0 0" xyz="0 0 0"/>-->
     <!--      <geometry>-->
-    <!--        <mesh filename="package://anymal_d_simple_description/meshes/hatch.dae" scale="1.0 1.0
+    <!--        <mesh filename="package://anymal_wbc/meshes/hatch.dae" scale="1.0 1.0
     1.0"/>-->
     <!--      </geometry>-->
     <!--    </visual>-->
@@ -1653,7 +1653,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/mount.dae"
+                <mesh filename="package://anymal_wbc/meshes/mount.dae"
                     scale="1 1 1" />
             </geometry>
         </visual>
@@ -1683,7 +1683,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/pan.dae" scale="1 1 1" />
+                <mesh filename="package://anymal_wbc/meshes/pan.dae" scale="1 1 1" />
             </geometry>
         </visual>
         <inertial>
@@ -1712,7 +1712,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0" />
             <geometry>
-                <mesh filename="package://anymal_d_simple_description/meshes/tilt.dae" scale="1 1 1" />
+                <mesh filename="package://anymal_wbc/meshes/tilt.dae" scale="1 1 1" />
             </geometry>
         </visual>
         <inertial>
