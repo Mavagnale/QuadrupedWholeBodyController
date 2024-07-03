@@ -21,20 +21,6 @@ Eigen::Vector3d eulAnglesRPY( Eigen::Matrix3d R )
 }
 
 
-/*
-void qpVectorize( const Eigen::Ref<const Eigen::MatrixXd> inputMatrix , qpOASES::real_t * outputVector)
-{
-    for (int i = 0 ; i < inputMatrix.rows() ; i++)
-    {
-        for (int j = 0 ; j < inputMatrix.cols() ; j++)
-        {
-            outputVector[i*inputMatrix.cols() + j] = inputMatrix(i,j);
-        }
-    }
-}
-*/
-
-
 WholeBodyController::WholeBodyController() : initStatus_(1) , firstJointStateCallback_(true) , firstControllerIteration_(true), 
                                              quadraticProblem_( qpNumberOfVariables , qpNumberOfConstraints )
 {
@@ -60,29 +46,29 @@ WholeBodyController::WholeBodyController() : initStatus_(1) , firstJointStateCal
     jointStateSub_ = nh_.subscribe("/anymal/joint_states" , 0 , &WholeBodyController::jointStateCallback , this);
     centerOfMassReferenceSub_ = nh_.subscribe("/anymal/com_reference" , 0 , &WholeBodyController::centerOfMassReferenceCallback , this);
 
-    jointPos_.resize(numberOfJoints);
-    jointVel_.resize(numberOfJoints);
-
     // initialize robot state
     setInitialState();
 
     // initialize qp 
-    qpSoln_.setZero();
-    
+    qpSolution_.setZero();
 }
+
 
 WholeBodyController::~WholeBodyController()
 {
 
 }
 
+
 void WholeBodyController::setInitialState()
 {
+    totalMass_ = model_.getTotalMass();
+
     T_world_base_.setIdentity();
     jointPos_.setZero();
     jointVel_.setZero();
     baseVel_.setZero();
-    gravity_ << 0.0 , 0.0 , 9.81;
+    gravity_ << 0.0 , 0.0 , gravityAcceleration;
 
     // todo: get the actual first position of the robot instead of the hard-coded one
     jointPos_ << 0.03 , -0,4 , 0.8 , 0.03 , 0.4 , -0.8 , -0.03 , 0.4 , -0.8 , -0.03 , -0.4 , 0.8; 
@@ -93,18 +79,30 @@ void WholeBodyController::setInitialState()
     oldTransformationMatrix_.setIdentity();
     oldCentroidStanceJacobian_.setZero();
 
+    baseMassMatrix_.setIdentity();
+    centroidMassMatrix_.setIdentity();
+    centroidMassMatrixJoints_.setIdentity();
+    centroidStanceJacobian_.setIdentity();
+    centroidStanceJacobianCoM_.setIdentity();
+    centroidStanceJacobianJoints_.setIdentity();
+    centroidGeneralizedBias_.setIdentity();
+    transformationMatrixDot_.setZero();
+    centroidStanceJacobianDot_.setZero();
+    centerOfMassPosition_.setZero();
+
     desiredPose_ = { 0.0 , 0.0 , 0.48 , 0.0 , 0.0 , 0.0 };
 
 }
 
 void WholeBodyController::centerOfMassReferenceCallback(std_msgs::Float64MultiArray refMsg)
 {
-    std::cout <<"CoM Reference acquired" << std::endl;   
+    std::cout <<"CoM Reference acquired\n";   
     for (int i = 0 ; i < 6 ; i++)
     {
         desiredPose_(i) = refMsg.data[i];
     }
 }
+
 
 void WholeBodyController::floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg)
 {
@@ -160,14 +158,25 @@ void WholeBodyController::updateState()
 {
     kinDynComp_.setRobotState( T_world_base_, jointPos_, baseVel_, jointVel_, gravity_);
 
+    centerOfMassPosition_ = iDynTree::toEigen(kinDynComp_.getCenterOfMassPosition());
+
     kinDynComp_.getFreeFloatingMassMatrix(iDynTree::make_matrix_view(massMatrix_));
+    baseMassMatrix_ =  massMatrix_.block<6,6>(0,0);
     transformationMatrix_ = computeTransformationMatrix();
 
     centroidMassMatrix_ =  transformationMatrix_.inverse().transpose() * massMatrix_ * transformationMatrix_.inverse();
+    centroidMassMatrixJoints_ = centroidMassMatrix_.block<numberOfJoints,numberOfJoints>(6,6);
 
     centroidStanceJacobian_ = computeStanceJacobian() * transformationMatrix_.inverse();
     centroidStanceJacobianCoM_ = centroidStanceJacobian_.block<3*numberOfLegs,6>(0,0);
     centroidStanceJacobianJoints_ =  centroidStanceJacobian_.block<3*numberOfLegs,numberOfJoints>(0,6);
+
+    Eigen::Vector<double,6+numberOfJoints> generalizedBaseVel;
+    generalizedBaseVel << baseVel_ , jointVel_;
+
+    centroidGeneralizedBias_ = 
+        transformationMatrix_.inverse().transpose() * computeCoriolisBias() +
+        transformationMatrix_.inverse().transpose() * massMatrix_*transformationMatrixDot_ * generalizedBaseVel; 
 
     computeDerivatives();
 }
@@ -175,14 +184,12 @@ void WholeBodyController::updateState()
 
 Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> WholeBodyController::computeTransformationMatrix()
 {
-    Eigen::Vector3d centerOfMassPosition = iDynTree::toEigen(kinDynComp_.getCenterOfMassPosition());
     Eigen::Vector3d basePosition = T_world_base_.block<3,1>(0,3);
 
     Eigen::Matrix<double,6,6> centroidToBaseAdjointMatrix;
-    centroidToBaseAdjointMatrix << Eigen::Matrix3d::Identity() , skewOperator(centerOfMassPosition - basePosition) ,
+    centroidToBaseAdjointMatrix << Eigen::Matrix3d::Identity() , skewOperator(centerOfMassPosition_ - basePosition) ,
                                    Eigen::Matrix3d::Zero()     , Eigen::Matrix3d::Identity();
 
-    Eigen::Matrix<double,6,6> baseMassMatrix =  massMatrix_.block<6,6>(0,0);
     Eigen::Matrix<double,6,numberOfJoints> baseJointsMassMatrix =  massMatrix_.block<6,numberOfJoints>(0,6);
 
     Eigen::Matrix<double,6,6+numberOfJoints> selectionMatrix;
@@ -192,7 +199,7 @@ Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> WholeBodyController::com
     //       in order to also obtain the rotational part (assuming centroidal frame oriented as the world frame), the following computation is done:
 
     Eigen::Matrix<double,6,6+numberOfJoints> centerOfMassFullJacobian = 
-                            centroidToBaseAdjointMatrix.inverse() * baseMassMatrix.inverse() * selectionMatrix * massMatrix_;
+                            centroidToBaseAdjointMatrix.inverse() * baseMassMatrix_.inverse() * selectionMatrix * massMatrix_;
 
     Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> transformationMatrix;
     transformationMatrix << centerOfMassFullJacobian , Eigen::Matrix<double,numberOfJoints,6>::Zero() , Eigen::Matrix<double,numberOfJoints,numberOfJoints>::Identity();
@@ -218,7 +225,7 @@ Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> WholeBodyController::compu
 
 void WholeBodyController::computeDerivatives()
 {
-    double timeStep = 1.0/loopRate;
+    double timeStep = 1.0 / loopRate;
 
     transformationMatrixDot_ = (transformationMatrix_ - oldTransformationMatrix_) / timeStep ; 
     centroidStanceJacobianDot_ = (centroidStanceJacobian_ - oldCentroidStanceJacobian_) / timeStep ;
@@ -227,7 +234,6 @@ void WholeBodyController::computeDerivatives()
 
     oldTransformationMatrix_ = transformationMatrix_;
     oldCentroidStanceJacobian_ = centroidStanceJacobian_;
-
 }
 
 Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> WholeBodyController::computeNonSlidingConstraints()
@@ -253,6 +259,33 @@ Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> WholeBodyController::compute
 }
 
 
+Eigen::Vector<double,6> WholeBodyController::computeDesiredWrench()
+{
+    Eigen::Vector<double,6> desiredWrench;
+    Eigen::Matrix<double,6,6> kpMatrix = kpValue * Eigen::Matrix<double,6,6>::Identity();
+    Eigen::Matrix<double,6,6> kdMatrix = kdValue * Eigen::Matrix<double,6,6>::Identity();
+
+
+    Eigen::Vector<double,6> desiredCoMVelocity = { 0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0 };
+
+    Eigen::Matrix3d currentOrientation = T_world_base_.block<3,3>(0,0);
+    Eigen::Vector<double,3> currentAttitude = eulAnglesRPY(currentOrientation);    
+
+    Eigen::Vector<double,6> currentPose;
+    currentPose << centerOfMassPosition_ , currentAttitude;
+
+    Eigen::Vector<double,6> currentCoMVelocity;
+    currentCoMVelocity << iDynTree::toEigen(kinDynComp_.getCenterOfMassVelocity()) , baseVel_.block<3,1>(3,0);
+
+    Eigen::Vector<double,6> gravityWrench = { 0.0 , 0.0 , totalMass_*gravityAcceleration , 0.0 , 0.0 , 0.0 };
+
+    desiredWrench = - kpMatrix * (currentPose - desiredPose_) 
+                    - kdMatrix * (currentCoMVelocity - desiredCoMVelocity)
+                    + gravityWrench; //todo: add feedforward acceleration term here
+
+    return desiredWrench;
+}
+
 void WholeBodyController::solveQP()
 {
     Eigen::Matrix<double,3*numberOfLegs, qpNumberOfVariables> groundReactionSelectionMatrix;
@@ -263,76 +296,54 @@ void WholeBodyController::solveQP()
     qpMatrixQ.setIdentity();
     qpMatrixR.setIdentity();
 
-
-
-    Eigen::Vector<double,6> desiredWrench;
-    Eigen::Matrix<double,6,6> Kp = 6000*Eigen::Matrix<double,6,6>::Identity();
-    Eigen::Matrix<double,6,6> Kd = 600*Eigen::Matrix<double,6,6>::Identity();
-
-
-    Eigen::Vector<double,6> desiredCoMVelocity = { 0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0 };
-
-    Eigen::Matrix3d currentOrientation = T_world_base_.block<3,3>(0,0);
-    Eigen::Vector<double,3> currentAttitude = eulAnglesRPY(currentOrientation);    
-
-    Eigen::Vector<double,6> currentPose;
-    currentPose << iDynTree::toEigen(kinDynComp_.getCenterOfMassPosition()) , currentAttitude;
-
-    Eigen::Vector<double,6> currentCoMVelocity;
-    currentCoMVelocity << iDynTree::toEigen(kinDynComp_.getCenterOfMassVelocity()) , baseVel_.block<3,1>(3,0);
-
-    Eigen::Vector<double,6> gravityWrench = {0.0 , 0.0 , model_.getTotalMass()*gravityAcceleration , 0.0 , 0.0 , 0.0 };
-
-    desiredWrench = -Kp*(currentPose - desiredPose_) - Kd*(currentCoMVelocity - desiredCoMVelocity) + gravityWrench; //todo: add feedforward acceleration term here
-
     Eigen::Matrix<double,qpNumberOfVariables,qpNumberOfVariables, Eigen::RowMajor> qpMatrixH =
                         groundReactionSelectionMatrix.transpose() * centroidStanceJacobianCoM_ *
                         qpMatrixQ * centroidStanceJacobianCoM_.transpose() * groundReactionSelectionMatrix
                         + qpMatrixR;
     Eigen::Vector<double,qpNumberOfVariables> qpMatrixg =
-                        - groundReactionSelectionMatrix.transpose() * centroidStanceJacobianCoM_ * qpMatrixQ * desiredWrench;
-
+                        - groundReactionSelectionMatrix.transpose() * centroidStanceJacobianCoM_ * qpMatrixQ * computeDesiredWrench();
 
     Eigen::Matrix<double, qpNumberOfConstraints, qpNumberOfVariables, Eigen::RowMajor> qpMatrixA;
     Eigen::Vector<double, qpNumberOfConstraints> qpMatrixbUB;
     Eigen::Vector<double, qpNumberOfConstraints> qpMatrixbLB;
 
-    
     Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> Dfr = computeNonSlidingConstraints();
 
     qpMatrixA << centroidMassMatrix_.block<6,6>(0,0) , Eigen::Matrix<double,6,numberOfJoints>::Zero() , -centroidStanceJacobianCoM_.transpose(),
                  centroidStanceJacobianCoM_          , centroidStanceJacobianJoints_                  , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero(),
                  Eigen::Matrix<double,4*numberOfLegs,6+numberOfJoints>::Zero() , Dfr;
 
+    Eigen::Vector<double,6> currentCoMVelocity;
+    currentCoMVelocity << iDynTree::toEigen(kinDynComp_.getCenterOfMassVelocity()) , baseVel_.block<3,1>(3,0);
 
     qpMatrixbUB << 0.0 ,
-                 0.0 ,
-                - model_.getTotalMass()*gravityAcceleration ,
-                 0.0 ,
-                 0.0 ,
-                 0.0 ,
+                   0.0 ,
+                   - totalMass_ * gravityAcceleration ,
+                   0.0 ,
+                   0.0 ,
+                   0.0 ,
                 - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ;
-                Eigen::Vector<double,4*numberOfLegs>::Zero();
+                 Eigen::Vector<double,4*numberOfLegs>::Zero();
                 
     qpMatrixbLB = qpMatrixbUB;
-    qpMatrixbLB.block<4*numberOfLegs,1>(6+3*numberOfLegs,0) = -qpOASES::INFTY*Eigen::Vector<double,4*numberOfLegs>::Ones();
-
-    std::cout << "qpMatrixbLB:\n" << qpMatrixbLB << "\n\n";
-    std::cout << "qpMatrixbUB:\n" << qpMatrixbUB << "\n\n";
+    qpMatrixbLB.block<4*numberOfLegs,1>(6+3*numberOfLegs,0) = -qpOASES::INFTY * Eigen::Vector<double,4*numberOfLegs>::Ones();
 
 	qpOASES::int_t nWSR = 100;
     qpOASES::Options myOptions;
     myOptions.setToReliable( );
+    myOptions.printLevel = qpOASES::PL_LOW ;
     quadraticProblem_.setOptions( myOptions );
 
     if (firstControllerIteration_)
     {
-        quadraticProblem_.init( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(), nullptr, nullptr, qpMatrixbLB.data(), qpMatrixbUB.data(), nWSR,0 );
+        quadraticProblem_.init( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(),
+                                nullptr, nullptr, qpMatrixbLB.data(), qpMatrixbUB.data(), nWSR, 0 );
         firstControllerIteration_ = false;
     }
     else
     {
-        quadraticProblem_.hotstart( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(), nullptr, nullptr, qpMatrixbLB.data(), qpMatrixbUB.data(), nWSR,0 );
+        quadraticProblem_.hotstart( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(), 
+                                    nullptr, nullptr, qpMatrixbLB.data(), qpMatrixbUB.data(), nWSR, 0 );
     }
     qpOASES::real_t xOpt[qpNumberOfVariables];
 	quadraticProblem_.getPrimalSolution( xOpt );
@@ -340,43 +351,29 @@ void WholeBodyController::solveQP()
 
     for (int i = 0 ; i < qpNumberOfVariables ; i++)
     {
-        qpSoln_[i] = xOpt[i];
+        qpSolution_[i] = xOpt[i];
     }
+}
 
-/*
-    for (int i = 0 ; i < qpNumberOfVariables ; i++)
-    {
-        std::cout << "xOpt[" << i << "]: " << xOpt[i] << std::endl;
-    }
-*/
-
-
+Eigen::Vector<double,6+numberOfJoints> WholeBodyController::computeCoriolisBias()
+{
+    Eigen::Vector<double,6+numberOfJoints> generalizedBias;
+    kinDynComp_.generalizedBiasForces(generalizedBias);
+    Eigen::Vector<double,6+numberOfJoints> generalizedGravity;
+    kinDynComp_.generalizedGravityForces(generalizedGravity);
+    return (generalizedBias - generalizedGravity);
 }
 
 
 void WholeBodyController::computeJointTorques()
 {
-
-    Eigen::Vector<double,numberOfJoints> desiredJointsAccelerations = qpSoln_.block<numberOfJoints,1>(6,0);
-    Eigen::Vector<double,numberOfJoints> desiredGroundReactionForces = qpSoln_.block<3*numberOfLegs,1>(6+numberOfJoints,0);
-    Eigen::Matrix<double,numberOfJoints,numberOfJoints> centroidMassMatrixJoints = centroidMassMatrix_.block<numberOfJoints,numberOfJoints>(6,6);
-
-    Eigen::Vector<double,6+numberOfJoints> generalizedBaseVel;
-    generalizedBaseVel << baseVel_ , jointVel_;
-
-
-    Eigen::Vector<double,6+numberOfJoints> generalizedBias;
-    kinDynComp_.generalizedBiasForces(generalizedBias);
-    Eigen::Vector<double,6+numberOfJoints> generalizedGravity;
-    kinDynComp_.generalizedGravityForces(generalizedGravity);
-    Eigen::Vector<double,6+numberOfJoints> coriolisBias = generalizedBias - generalizedGravity;
-
-    Eigen::Vector<double,6+numberOfJoints> centroidGeneralizedBias = 
-        transformationMatrix_.inverse().transpose() * coriolisBias + transformationMatrix_.inverse().transpose()*massMatrix_*transformationMatrixDot_*generalizedBaseVel; 
+    Eigen::Vector<double,numberOfJoints> desiredJointsAccelerations = qpSolution_.block<numberOfJoints,1>(6,0);
+    Eigen::Vector<double,numberOfJoints> desiredGroundReactionForces = qpSolution_.block<3*numberOfLegs,1>(6+numberOfJoints,0);
 
     Eigen::Vector<double,numberOfJoints> actuationTorque = 
-                    centroidMassMatrixJoints*desiredJointsAccelerations + centroidGeneralizedBias.block<12,1>(6,0) - centroidStanceJacobianJoints_.transpose()*desiredGroundReactionForces;
-
+                    centroidMassMatrixJoints_ * desiredJointsAccelerations +
+                    centroidGeneralizedBias_.block<12,1>(6,0) 
+                    - centroidStanceJacobianJoints_.transpose() * desiredGroundReactionForces;
 
     std_msgs::Float64MultiArray commandMsg;
     for (int i = 0 ; i < numberOfJoints ; i++)
@@ -384,35 +381,20 @@ void WholeBodyController::computeJointTorques()
         commandMsg.data.push_back(actuationTorque(i));
     } 
 
-    /*
-    for (int i = 0 ; i < numberOfJoints ; i++)
-    {
-        std::cout << "actuationTorque[" << i << "]: " << actuationTorque[i] << std::endl;
-    }
-    */
     jointTorquePub_.publish(commandMsg);
 }
 
 void WholeBodyController::controlLoop()
 {
-    ros::Rate rosRate(loopRate);
 
-    while(!firstJointStateCallback_)
-    {
-        rosRate.sleep();
-    }
+    ros::Rate rosRate(loopRate);
 
     while (ros::ok())
     {
         updateState();
         solveQP();
         computeJointTorques();
-//        std::cout << "T_world_base_:\n" << T_world_base_ << "\n\n";
-//        std::cout << "jointPos_:\n" << jointPos_ << "\n\n";
-//        std::cout << "baseVel_:\n" << baseVel_ << "\n\n";
-//        std::cout << "jointVel_:\n" << jointVel_ << "\n\n";
-//        std::cout << "centroidStanceJacobian_:\n" << centroidStanceJacobian_ << "\n\n";
-//        std::cout << "centroidMassMatrix_:_\n" << centroidMassMatrix_ << "\n\n";
+
         std::cout << "Desired com position:\n";
         std::cout << desiredPose_.block<3,1>(0,0) << "\n\n";
         std::cout << "Actual com position:\n";
@@ -428,8 +410,4 @@ void WholeBodyController::run()
     // starts the control loop thread
 	boost::thread ctrl_loop_t ( &WholeBodyController::controlLoop, this);     
 	ros::spin();	    
-}
-
-void WholeBodyController::test()
-{
 }

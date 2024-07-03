@@ -26,6 +26,9 @@ const int qpNumberOfVariables = 6 + numberOfJoints + 3*numberOfLegs; // CoM acce
 const int qpNumberOfConstraints = 6 + 3*numberOfLegs + 4*numberOfLegs; // dynamics constraints + stance feet constraints + non-sliding constraints 
 const double friction = 1;
 const double loopRate = 500;
+const double maxTorque = 80;
+const double kpValue = 6000;
+const double kdValue = 600;
 
 class WholeBodyController
 {
@@ -34,21 +37,26 @@ class WholeBodyController
         ~WholeBodyController();
         
         void run();
-        void updateState();
-        void test();
+    
 		void floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg);
 		void jointStateCallback(sensor_msgs::JointState jointStateMsg);
 		void centerOfMassReferenceCallback(std_msgs::Float64MultiArray refMsg);
+
+        void updateState();
+
         void setInitialState();
         void computeJointTorques();
         void computeDerivatives();
-        void controlLoop();
+        void solveQP();
 
 
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> computeTransformationMatrix();
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> computeStanceJacobian();
+        Eigen::Vector<double,6+numberOfJoints> computeCoriolisBias(); 
         Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> computeNonSlidingConstraints();
-        void solveQP();
+        Eigen::Vector<double,6> computeDesiredWrench();
+        
+        void controlLoop();
 
     private:
         ros::NodeHandle nh_;
@@ -71,21 +79,26 @@ class WholeBodyController
 
         // state variables
         Eigen::Matrix4d T_world_base_;
-        Eigen::VectorXd jointPos_;
+        Eigen::Vector<double,numberOfJoints> jointPos_;
         Eigen::Matrix<double,6,1> baseVel_;
-        Eigen::VectorXd jointVel_;
+        Eigen::Vector<double,numberOfJoints> jointVel_;
         Eigen::Vector3d gravity_;
 
         // references
         Eigen::Vector<double,6> desiredPose_;
 
-        // model matrices
+        // model quantities
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> massMatrix_;
+        Eigen::Matrix<double,6,6> baseMassMatrix_;
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> transformationMatrix_;
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> centroidMassMatrix_;
+        Eigen::Matrix<double,numberOfJoints,numberOfJoints> centroidMassMatrixJoints_;
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> centroidStanceJacobian_;
         Eigen::Matrix<double,3*numberOfLegs,6> centroidStanceJacobianCoM_;
         Eigen::Matrix<double,3*numberOfLegs,numberOfJoints> centroidStanceJacobianJoints_;
+        Eigen::Vector<double,6+numberOfJoints> centroidGeneralizedBias_;
+        Eigen::Vector3d centerOfMassPosition_;
+        double totalMass_;
 
         // numerical derivation
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> oldTransformationMatrix_;
@@ -95,7 +108,7 @@ class WholeBodyController
 
         // quadratic problem
         qpOASES::SQProblem quadraticProblem_;
-        Eigen::Vector<double,6+numberOfJoints+3*numberOfLegs> qpSoln_;
+        Eigen::Vector<double,6+numberOfJoints+3*numberOfLegs> qpSolution_;
 };
 
 #endif
