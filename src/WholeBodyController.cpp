@@ -62,6 +62,11 @@ WholeBodyController::~WholeBodyController()
 
 void WholeBodyController::setInitialState()
 {
+    for (int i = 0 ; i < numberOfLegs ; i++)
+    {
+        footContacts_[i] = 1;
+    }
+
     totalMass_ = model_.getTotalMass();
 
     T_world_base_.setIdentity();
@@ -70,28 +75,36 @@ void WholeBodyController::setInitialState()
     baseVel_.setZero();
     gravity_ << 0.0 , 0.0 , gravityAcceleration;
 
-    // todo: get the actual first position of the robot instead of the hard-coded one
-    jointPos_ << 0.03 , -0,4 , 0.8 , 0.03 , 0.4 , -0.8 , -0.03 , 0.4 , -0.8 , -0.03 , -0.4 , 0.8; 
-    T_world_base_.block<3,1>(0,3) << 0.0 , 0.0 , 0.48;
+    // todo: get the actual first position of the robot joints instead of the hard-coded one
+    jointPos_ << 0.03 , -0.4 , 0.8 , 0.03 , 0.4 , -0.8 , -0.03 , 0.4 , -0.8 , -0.03 , -0.4 , 0.8; 
+    T_world_base_.block<3,1>(0,3) << 0.0 , 0.0 , 0.60;
 
     massMatrix_.setIdentity();
     transformationMatrix_.setIdentity();
     oldTransformationMatrix_.setIdentity();
     oldCentroidStanceJacobian_.setZero();
+    oldCentroidSwingJacobian_.setZero();
 
     baseMassMatrix_.setIdentity();
     centroidMassMatrix_.setIdentity();
     centroidMassMatrixJoints_.setIdentity();
     centroidStanceJacobian_.setIdentity();
+    centroidSwingJacobian_.setIdentity();
     centroidStanceJacobianCoM_.setIdentity();
+    centroidSwingJacobianCoM_.setIdentity();
     centroidStanceJacobianJoints_.setIdentity();
+    centroidSwingJacobianJoints_.setIdentity();
+
     centroidGeneralizedBias_.setIdentity();
     transformationMatrixDot_.setZero();
     centroidStanceJacobianDot_.setZero();
+    centroidSwingJacobianDot_.setZero();
     centerOfMassPosition_.setZero();
 
     desiredPose_ = { 0.0 , 0.0 , 0.48 , 0.0 , 0.0 , 0.0 };
-
+    desiredSwingLegsAcceleration_.setZero();
+    desiredSwingLegsVelocity_.setZero();
+    desiredSwingLegsPosition_.setZero();    
 }
 
 void WholeBodyController::centerOfMassReferenceCallback(std_msgs::Float64MultiArray refMsg)
@@ -106,7 +119,7 @@ void WholeBodyController::centerOfMassReferenceCallback(std_msgs::Float64MultiAr
 
 void WholeBodyController::floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg)
 {
-    Eigen::Quaterniond floatingBaseOrientationQuat( modelStateMsg.pose[1].orientation.w,    //todo: substitute "[1]" with the runtime model index
+    Eigen::Quaterniond floatingBaseOrientationQuat( modelStateMsg.pose[1].orientation.w,    // todo: substitute "[1]" with the runtime model index
                                                     modelStateMsg.pose[1].orientation.x, 
                                                     modelStateMsg.pose[1].orientation.y,
                                                     modelStateMsg.pose[1].orientation.z );
@@ -167,9 +180,17 @@ void WholeBodyController::updateState()
     centroidMassMatrix_ =  transformationMatrix_.inverse().transpose() * massMatrix_ * transformationMatrix_.inverse();
     centroidMassMatrixJoints_ = centroidMassMatrix_.block<numberOfJoints,numberOfJoints>(6,6);
 
-    centroidStanceJacobian_ = computeStanceJacobian() * transformationMatrix_.inverse();
+    Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> stanceJacobian;
+    Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> swingJacobian;
+    computeJacobians( stanceJacobian , swingJacobian );
+
+    centroidStanceJacobian_ = stanceJacobian * transformationMatrix_.inverse();
     centroidStanceJacobianCoM_ = centroidStanceJacobian_.block<3*numberOfLegs,6>(0,0);
     centroidStanceJacobianJoints_ =  centroidStanceJacobian_.block<3*numberOfLegs,numberOfJoints>(0,6);
+
+    centroidSwingJacobian_ = swingJacobian * transformationMatrix_.inverse();
+    centroidSwingJacobianCoM_ = centroidSwingJacobian_.block<3*numberOfLegs,6>(0,0);
+    centroidSwingJacobianJoints_ =  centroidSwingJacobian_.block<3*numberOfLegs,numberOfJoints>(0,6);
 
     Eigen::Vector<double,6+numberOfJoints> generalizedBaseVel;
     generalizedBaseVel << baseVel_ , jointVel_;
@@ -191,8 +212,6 @@ Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> WholeBodyController::com
     centroidToBaseAdjointMatrix << Eigen::Matrix3d::Identity() , skewOperator(centerOfMassPosition_ - basePosition) ,
                                    Eigen::Matrix3d::Zero()     , Eigen::Matrix3d::Identity();
 
-    Eigen::Matrix<double,6,numberOfJoints> baseJointsMassMatrix =  massMatrix_.block<6,numberOfJoints>(0,6);
-
     Eigen::Matrix<double,6,6+numberOfJoints> selectionMatrix;
     selectionMatrix << Eigen::Matrix<double,6,6>::Identity() , Eigen::Matrix<double,6,numberOfJoints>::Zero();
 
@@ -208,21 +227,72 @@ Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> WholeBodyController::com
     return transformationMatrix;
 }
 
-Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> WholeBodyController::computeStanceJacobian()
+void WholeBodyController::computeJacobians(Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> & stanceJacobian,
+                                                Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> & swingJacobian)
 {
-    Eigen::Matrix<double,3*numberOfLegs, 6+numberOfJoints> fullStanceJacobian;
-    Eigen::Matrix<double,6, 6+numberOfJoints> footStanceJacobian;
-    kinDynComp_.getFrameFreeFloatingJacobian(kinDynComp_.getFrameIndex("LH_FOOT"),iDynTree::make_matrix_view(footStanceJacobian));
-    fullStanceJacobian.block<3,6+numberOfJoints>(0,0) = footStanceJacobian.block<3,6+numberOfJoints>(0,0);
-    kinDynComp_.getFrameFreeFloatingJacobian(kinDynComp_.getFrameIndex("LF_FOOT"),iDynTree::make_matrix_view(footStanceJacobian));
-    fullStanceJacobian.block<3,6+numberOfJoints>(3,0) = footStanceJacobian.block<3,6+numberOfJoints>(0,0);
-    kinDynComp_.getFrameFreeFloatingJacobian(kinDynComp_.getFrameIndex("RF_FOOT"),iDynTree::make_matrix_view(footStanceJacobian));
-    fullStanceJacobian.block<3,6+numberOfJoints>(6,0) = footStanceJacobian.block<3,6+numberOfJoints>(0,0);
-    kinDynComp_.getFrameFreeFloatingJacobian(kinDynComp_.getFrameIndex("RH_FOOT"),iDynTree::make_matrix_view(footStanceJacobian));
-    fullStanceJacobian.block<3,6+numberOfJoints>(9,0) = footStanceJacobian.block<3,6+numberOfJoints>(0,0);
+    stanceJacobian.setZero();
+    swingJacobian.setZero();
 
-    return fullStanceJacobian;
+    Eigen::Matrix<double,6, 6+numberOfJoints> footJacobian;
+
+    kinDynComp_.getFrameFreeFloatingJacobian( kinDynComp_.getFrameIndex("LH_FOOT") , iDynTree::make_matrix_view(footJacobian) );
+    stanceJacobian.block<3,6+numberOfJoints>(0,0) = footJacobian.block<3,6+numberOfJoints>(0,0) * footContacts_[0];
+    swingJacobian.block<3,6+numberOfJoints>(0,0) = footJacobian.block<3,6+numberOfJoints>(0,0) * !footContacts_[0];
+
+    kinDynComp_.getFrameFreeFloatingJacobian( kinDynComp_.getFrameIndex("LF_FOOT") , iDynTree::make_matrix_view(footJacobian) );
+    stanceJacobian.block<3,6+numberOfJoints>(3,0) = footJacobian.block<3,6+numberOfJoints>(0,0) * footContacts_[1];
+    swingJacobian.block<3,6+numberOfJoints>(3,0) = footJacobian.block<3,6+numberOfJoints>(0,0) * !footContacts_[1];
+
+    kinDynComp_.getFrameFreeFloatingJacobian( kinDynComp_.getFrameIndex("RF_FOOT") , iDynTree::make_matrix_view(footJacobian) );
+    stanceJacobian.block<3,6+numberOfJoints>(6,0) = footJacobian.block<3,6+numberOfJoints>(0,0) * footContacts_[2];
+    swingJacobian.block<3,6+numberOfJoints>(6,0) = footJacobian.block<3,6+numberOfJoints>(0,0) * !footContacts_[2];
+
+    kinDynComp_.getFrameFreeFloatingJacobian( kinDynComp_.getFrameIndex("RH_FOOT") , iDynTree::make_matrix_view(footJacobian) );
+    stanceJacobian.block<3,6+numberOfJoints>(9,0) = footJacobian.block<3,6+numberOfJoints>(0,0) * footContacts_[3];
+    swingJacobian.block<3,6+numberOfJoints>(9,0) = footJacobian.block<3,6+numberOfJoints>(0,0) * !footContacts_[3];
 }
+
+Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeSwingFootPosition()
+{
+    Eigen::Vector<double,3*numberOfLegs> swingFootPosition;
+    Eigen::Matrix4d swingFootTransform;
+
+    kinDynComp_.getWorldTransform( kinDynComp_.getFrameIndex("LH_FOOT") , iDynTree::make_matrix_view(swingFootTransform) );
+    swingFootPosition.block<3,1>(0,0) = swingFootTransform.block<3,1>(0,3);
+
+    kinDynComp_.getWorldTransform( kinDynComp_.getFrameIndex("LF_FOOT") , iDynTree::make_matrix_view(swingFootTransform) );
+    swingFootPosition.block<3,1>(3,0) = swingFootTransform.block<3,1>(0,3);
+
+    kinDynComp_.getWorldTransform( kinDynComp_.getFrameIndex("RF_FOOT") , iDynTree::make_matrix_view(swingFootTransform) );
+    swingFootPosition.block<3,1>(6,0) = swingFootTransform.block<3,1>(0,3);
+
+    kinDynComp_.getWorldTransform( kinDynComp_.getFrameIndex("RH_FOOT") , iDynTree::make_matrix_view(swingFootTransform) );
+    swingFootPosition.block<3,1>(9,0) = swingFootTransform.block<3,1>(0,3);
+
+    return swingFootPosition;
+}
+
+
+Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeSwingFootVelocity()
+{
+    Eigen::Vector<double,3*numberOfLegs> swingFootVelocity;
+    iDynTree::Twist swingFootTwist;
+
+    swingFootTwist = kinDynComp_.getFrameVel( kinDynComp_.getFrameIndex("LH_FOOT") );
+    swingFootVelocity.block<3,1>(0,0) = iDynTree::toEigen(swingFootTwist).block<3,1>(0,0);
+
+    swingFootTwist = kinDynComp_.getFrameVel( kinDynComp_.getFrameIndex("LF_FOOT") );
+    swingFootVelocity.block<3,1>(3,0) = iDynTree::toEigen(swingFootTwist).block<3,1>(0,0);
+
+    swingFootTwist = kinDynComp_.getFrameVel( kinDynComp_.getFrameIndex("RF_FOOT") );
+    swingFootVelocity.block<3,1>(6,0) = iDynTree::toEigen(swingFootTwist).block<3,1>(0,0);
+
+    swingFootTwist = kinDynComp_.getFrameVel( kinDynComp_.getFrameIndex("RH_FOOT") );
+    swingFootVelocity.block<3,1>(9,0) = iDynTree::toEigen(swingFootTwist).block<3,1>(0,0);
+
+    return swingFootVelocity;
+}
+
 
 void WholeBodyController::computeDerivatives()
 {
@@ -230,11 +300,13 @@ void WholeBodyController::computeDerivatives()
 
     transformationMatrixDot_ = (transformationMatrix_ - oldTransformationMatrix_) / timeStep ; 
     centroidStanceJacobianDot_ = (centroidStanceJacobian_ - oldCentroidStanceJacobian_) / timeStep ;
+    centroidSwingJacobianDot_ = (centroidSwingJacobian_ - oldCentroidSwingJacobian_) / timeStep ;
 
     // todo: add filtering to the numerical derivative
 
     oldTransformationMatrix_ = transformationMatrix_;
     oldCentroidStanceJacobian_ = centroidStanceJacobian_;
+    oldCentroidSwingJacobian_ = centroidSwingJacobian_;
 }
 
 Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> WholeBodyController::computeNonSlidingConstraints()
@@ -251,10 +323,10 @@ Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> WholeBodyController::compute
 
     Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> Dfr;
     Dfr.setZero();
-    Dfr.block<4,3>(0,0) = D;
-    Dfr.block<4,3>(4,3) = D;
-    Dfr.block<4,3>(8,6) = D;
-    Dfr.block<4,3>(12,9) = D;
+    Dfr.block<4,3>(0,0) = D * footContacts_[0];
+    Dfr.block<4,3>(4,3) = D * footContacts_[1];
+    Dfr.block<4,3>(8,6) = D * footContacts_[2];
+    Dfr.block<4,3>(12,9) = D * footContacts_[3];
 
     return Dfr;
 }
@@ -282,16 +354,34 @@ Eigen::Vector<double,6> WholeBodyController::computeDesiredWrench()
 
     desiredWrench = - kpMatrix * (currentPose - desiredPose_) 
                     - kdMatrix * (currentCoMVelocity - desiredCoMVelocity)
-                    + gravityWrench; //todo: add feedforward acceleration term here
+                    + gravityWrench; // todo: add feedforward acceleration term here
 
     return desiredWrench;
 }
 
+Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeCommandedAccelerationSwingLegs()
+{
+    Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs> kpSwingMatrix = kpSwingValue * Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity();
+    Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs> kdSwingMatrix = kdSwingValue * Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity();
+
+    Eigen::Vector<double,3*numberOfLegs> commandedAccelerationSwingLegs = desiredSwingLegsAcceleration_ +
+                                                                          kdSwingMatrix * ( desiredSwingLegsVelocity_ - computeSwingFootVelocity() ) +
+                                                                          kpSwingMatrix * ( desiredSwingLegsPosition_ - computeSwingFootPosition() ) ;
+
+    for (int i = 0 ; i < numberOfLegs ; i++)
+    {
+        commandedAccelerationSwingLegs(3*i) *= !footContacts_[i];
+        commandedAccelerationSwingLegs(3*i + 1) *= !footContacts_[i];
+        commandedAccelerationSwingLegs(3*i + 2) *= !footContacts_[i];
+    }
+
+    return commandedAccelerationSwingLegs;
+}
 
 void WholeBodyController::solveQP()
 {
     Eigen::Matrix<double,3*numberOfLegs, qpNumberOfVariables> groundReactionSelectionMatrix;
-    groundReactionSelectionMatrix << Eigen::Matrix<double,3*numberOfLegs, 6 + numberOfJoints>::Zero() , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity();
+    groundReactionSelectionMatrix << Eigen::Matrix<double,3*numberOfLegs, 6 + numberOfJoints>::Zero() , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity() , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero() ;
     
     Eigen::Matrix<double,6,6> qpMatrixQ;
     Eigen::Matrix<double,qpNumberOfVariables,qpNumberOfVariables> qpMatrixR;
@@ -311,10 +401,12 @@ void WholeBodyController::solveQP()
 
     Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> Dfr = computeNonSlidingConstraints();
 
-    qpMatrixA << centroidMassMatrix_.block<6,6>(0,0) , Eigen::Matrix<double,6,numberOfJoints>::Zero() , -centroidStanceJacobianCoM_.transpose(),
-                 centroidStanceJacobianCoM_          , centroidStanceJacobianJoints_                  , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero(),
-                 Eigen::Matrix<double,4*numberOfLegs,6+numberOfJoints>::Zero() , Dfr,
-                 Eigen::Matrix<double,numberOfJoints,6>::Zero() , centroidMassMatrixJoints_ , -centroidStanceJacobianJoints_.transpose();
+    qpMatrixA << centroidMassMatrix_.block<6,6>(0,0)            , Eigen::Matrix<double,6,numberOfJoints>::Zero()              , -centroidStanceJacobianCoM_.transpose()                     , Eigen::Matrix<double,6,3*numberOfLegs>::Zero()                     ,
+                 centroidStanceJacobianCoM_                     , centroidStanceJacobianJoints_                               , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero() , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero()        ,
+                 Eigen::Matrix<double,4*numberOfLegs,6>::Zero() , Eigen::Matrix<double,4*numberOfLegs,numberOfJoints>::Zero() , Dfr                                                         , Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs>::Zero()        ,
+                 Eigen::Matrix<double,numberOfJoints,6>::Zero() , centroidMassMatrixJoints_                                   , -centroidStanceJacobianJoints_.transpose()                  , Eigen::Matrix<double,numberOfJoints,3*numberOfLegs>::Zero()        , 
+                 centroidSwingJacobianCoM_                      , centroidSwingJacobianJoints_                                , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero() , - Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity()  ,  
+                 centroidSwingJacobianCoM_                      , centroidSwingJacobianJoints_                                , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero() , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity()  ;  
 
     Eigen::Vector<double,6> currentCoMVelocity;
     currentCoMVelocity << iDynTree::toEigen(kinDynComp_.getCenterOfMassVelocity()) , baseVel_.block<3,1>(3,0);
@@ -327,11 +419,22 @@ void WholeBodyController::solveQP()
                     0.0 ,
                     - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ,
                     Eigen::Vector<double,4*numberOfLegs>::Zero(),
-                    maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0);
-                
-    qpMatrixbLB = qpMatrixbUB;
-    qpMatrixbLB.block<4*numberOfLegs,1>(6+3*numberOfLegs,0) = -qpOASES::INFTY * Eigen::Vector<double,4*numberOfLegs>::Ones();
-    qpMatrixbLB.block<numberOfJoints,1>(6+3*numberOfLegs+4*numberOfLegs,0) = -maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0);
+                    maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
+                    computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_,
+                    qpOASES::INFTY * Eigen::Vector<double,3*numberOfLegs>::Ones();
+
+
+    qpMatrixbLB <<  0.0 ,
+                    0.0 ,
+                    - totalMass_ * gravityAcceleration ,
+                    0.0 ,
+                    0.0 ,
+                    0.0 ,
+                    - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ,
+                    -qpOASES::INFTY * Eigen::Vector<double,4*numberOfLegs>::Ones(),
+                    - maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
+                    -qpOASES::INFTY * Eigen::Vector<double,3*numberOfLegs>::Ones(),
+                    computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_;
 
 	qpOASES::int_t nWSR = 100;
     qpOASES::Options myOptions;
@@ -394,11 +497,17 @@ void WholeBodyController::controlLoop()
 
     ros::Rate rosRate(loopRate);
 
+    double time = 0.0;
+    double deltaTime = 1.0 / loopRate;
+
+
     while (ros::ok())
     {
         updateState();
         solveQP();
         computeJointTorques();
+
+        std::cout << "time: " << time << " s\n";
 
         std::cout << "Desired com position:\n";
         std::cout << desiredPose_.block<3,1>(0,0) << "\n\n";
@@ -407,6 +516,7 @@ void WholeBodyController::controlLoop()
         std::cout << "---------------------------" << "\n\n";
 
         rosRate.sleep();
+        time = time + deltaTime;
     }
 }
 

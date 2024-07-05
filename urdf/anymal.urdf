@@ -1921,7 +1921,7 @@
     </transmission>
 
 <gazebo reference="LF_FOOT">
-    <sensor name="LF_FOOT_contact_sensor" type="contact">
+    <sensor name="anymal/contact_sensor/LF_FOOT" type="contact">
       <always_on>true</always_on>
       <update_rate>5</update_rate>
       <contact>
@@ -1934,7 +1934,7 @@
     </sensor>
   </gazebo>
   <gazebo reference="LH_FOOT">
-    <sensor name="LH_FOOT_contact_sensor" type="contact">
+    <sensor name="anymal/contact_sensor/LH_FOOT" type="contact">
       <always_on>true</always_on>
       <update_rate>5</update_rate>
       <contact>
@@ -1947,7 +1947,7 @@
     </sensor>
   </gazebo>
   <gazebo reference="RF_FOOT">
-    <sensor name="RF_FOOT_contact_sensor" type="contact">
+    <sensor name="anymal/contact_sensor/RF_FOOT" type="contact">
       <always_on>true</always_on>
       <update_rate>5</update_rate>
       <contact>
@@ -1960,7 +1960,7 @@
     </sensor>
   </gazebo>
   <gazebo reference="RH_FOOT">
-    <sensor name="RH_FOOT_contact_sensor" type="contact">
+    <sensor name="anymal/contact_sensor/RH_FOOT" type="contact">
       <always_on>true</always_on>
       <update_rate>5</update_rate>
       <contact>

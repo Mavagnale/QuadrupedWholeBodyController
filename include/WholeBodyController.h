@@ -22,13 +22,16 @@
 const int numberOfJoints = 12;
 const int numberOfLegs = 4;
 const double gravityAcceleration = 9.81;
-const int qpNumberOfVariables = 6 + numberOfJoints + 3*numberOfLegs; // CoM accelerations + joints accelerations + ground reaction forces
-const int qpNumberOfConstraints = 6 + 3*numberOfLegs + 4*numberOfLegs + numberOfJoints; // dynamics constraints + stance feet constraints + non-sliding constraints + torque limit constraints
+const int qpNumberOfVariables = 6 + numberOfJoints + 3*numberOfLegs + 3*numberOfLegs; // CoM accelerations + joints accelerations + ground reaction forces + slack variables
+const int qpNumberOfConstraints = 6 + 3*numberOfLegs + 4*numberOfLegs + numberOfJoints + 6*numberOfLegs; // dynamics constraints + stance feet constraints + non-sliding constraints + torque limit constraints + swing legs constraints
 const double friction = 1;
 const double loopRate = 500;
 const double maxTorque = 80;
 const double kpValue = 6000;
 const double kdValue = 600;
+const double kpSwingValue = 6000;
+const double kdSwingValue = 600;
+
 
 class WholeBodyController
 {
@@ -51,11 +54,17 @@ class WholeBodyController
 
 
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> computeTransformationMatrix();
-        Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> computeStanceJacobian();
+        void computeJacobians(Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> & stanceJacobian,
+                                   Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> & swingJacobian);
         Eigen::Vector<double,6+numberOfJoints> computeCoriolisBias(); 
         Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> computeNonSlidingConstraints();
         Eigen::Vector<double,6> computeDesiredWrench();
+        Eigen::Vector<double,3*numberOfLegs> computeCommandedAccelerationSwingLegs();
+        Eigen::Vector<double,3*numberOfLegs> computeSwingFootPosition();
+        Eigen::Vector<double,3*numberOfLegs> computeSwingFootVelocity();
         
+
+
         void controlLoop();
 
     private:
@@ -86,6 +95,9 @@ class WholeBodyController
 
         // references
         Eigen::Vector<double,6> desiredPose_;
+        Eigen::Vector<double,3*numberOfLegs> desiredSwingLegsAcceleration_;
+        Eigen::Vector<double,3*numberOfLegs> desiredSwingLegsVelocity_;
+        Eigen::Vector<double,3*numberOfLegs> desiredSwingLegsPosition_;
 
         // model quantities
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> massMatrix_;
@@ -94,11 +106,17 @@ class WholeBodyController
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> centroidMassMatrix_;
         Eigen::Matrix<double,numberOfJoints,numberOfJoints> centroidMassMatrixJoints_;
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> centroidStanceJacobian_;
+        Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> centroidSwingJacobian_;
         Eigen::Matrix<double,3*numberOfLegs,6> centroidStanceJacobianCoM_;
+        Eigen::Matrix<double,3*numberOfLegs,6> centroidSwingJacobianCoM_;
         Eigen::Matrix<double,3*numberOfLegs,numberOfJoints> centroidStanceJacobianJoints_;
+        Eigen::Matrix<double,3*numberOfLegs,numberOfJoints> centroidSwingJacobianJoints_;
         Eigen::Vector<double,6+numberOfJoints> centroidGeneralizedBias_;
         Eigen::Vector3d centerOfMassPosition_;
         double totalMass_;
+
+        // on-off foot contacts
+        int footContacts_[numberOfLegs];
 
         // numerical derivation
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> oldTransformationMatrix_;
@@ -106,6 +124,8 @@ class WholeBodyController
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> transformationMatrixDotInverse_;
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> oldCentroidStanceJacobian_;
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> centroidStanceJacobianDot_;
+        Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> oldCentroidSwingJacobian_;
+        Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> centroidSwingJacobianDot_;
 
         // quadratic problem
         qpOASES::SQProblem quadraticProblem_;
