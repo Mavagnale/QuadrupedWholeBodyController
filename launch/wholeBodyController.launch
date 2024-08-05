@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+
+    <include file="$(find anymal_wbc)/launch/spawn.launch">
+    </include>
+
+    <node name="wholeBodyControllerNode" pkg="anymal_wbc" type="wholeBodyControllerNode" output="screen"/>
+    
+</launch>

@@ -30,5 +30,5 @@ target_link_libraries(WholeBodyController PRIVATE iDynTree::idyntree-high-level 
 add_executable(effortPublisher src/effortPublisher.cpp)
 target_link_libraries(effortPublisher ${catkin_LIBRARIES})
 
-add_executable(main src/main.cpp)
-target_link_libraries(main WholeBodyController ${catkin_LIBRARIES})
+add_executable(wholeBodyControllerNode src/wholeBodyControllerNode.cpp)
+target_link_libraries(wholeBodyControllerNode WholeBodyController ${catkin_LIBRARIES})
