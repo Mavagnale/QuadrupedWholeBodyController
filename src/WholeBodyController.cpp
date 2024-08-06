@@ -9,7 +9,6 @@ Eigen::Matrix3d skewOperator( Eigen::Vector3d v )
     return S;
 }
 
-
 Eigen::Vector3d eulAnglesRPY( Eigen::Matrix3d R )
 {
     double roll = atan2( R(2,1) , R(2,2) );    
@@ -19,7 +18,6 @@ Eigen::Vector3d eulAnglesRPY( Eigen::Matrix3d R )
     Eigen::Vector3d attitude{ roll , pitch , yaw };
     return attitude;
 }
-
 
 WholeBodyController::WholeBodyController() : initStatus_(1) , firstJointStateCallback_(true) , firstControllerIteration_(true), 
                                              quadraticProblem_( qpNumberOfVariables , qpNumberOfConstraints )
@@ -53,12 +51,9 @@ WholeBodyController::WholeBodyController() : initStatus_(1) , firstJointStateCal
     qpSolution_.setZero();
 }
 
-
 WholeBodyController::~WholeBodyController()
 {
-
 }
-
 
 void WholeBodyController::setInitialState()
 {
@@ -85,7 +80,7 @@ void WholeBodyController::setInitialState()
     oldCentroidStanceJacobian_.setZero();
     oldCentroidSwingJacobian_.setZero();
 
-    baseMassMatrix_.setIdentity();
+    massMatrixBase_.setIdentity();
     centroidMassMatrix_.setIdentity();
     centroidMassMatrixJoints_.setIdentity();
     centroidStanceJacobian_.setIdentity();
@@ -116,7 +111,6 @@ void WholeBodyController::centerOfMassReferenceCallback(std_msgs::Float64MultiAr
     }
 }
 
-
 void WholeBodyController::floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg)
 {
     Eigen::Quaterniond floatingBaseOrientationQuat( modelStateMsg.pose[1].orientation.w,    // todo: substitute "[1]" with the runtime model index
@@ -140,7 +134,6 @@ void WholeBodyController::floatingBaseStateCallback(gazebo_msgs::ModelStates mod
 
     baseVel_ << floatingBaseLinVel , floatingBaseAngVel;
 }
-
 
 void WholeBodyController::jointStateCallback(sensor_msgs::JointState jointStateMsg)
 {
@@ -166,7 +159,6 @@ void WholeBodyController::jointStateCallback(sensor_msgs::JointState jointStateM
     }
 }
 
-
 void WholeBodyController::updateState()
 {
     kinDynComp_.setRobotState( T_world_base_, jointPos_, baseVel_, jointVel_, gravity_);
@@ -174,7 +166,7 @@ void WholeBodyController::updateState()
     centerOfMassPosition_ = iDynTree::toEigen(kinDynComp_.getCenterOfMassPosition());
 
     kinDynComp_.getFreeFloatingMassMatrix(iDynTree::make_matrix_view(massMatrix_));
-    baseMassMatrix_ =  massMatrix_.block<6,6>(0,0);
+    massMatrixBase_ =  massMatrix_.block<6,6>(0,0);
     transformationMatrix_ = computeTransformationMatrix();
 
     centroidMassMatrix_ =  transformationMatrix_.inverse().transpose() * massMatrix_ * transformationMatrix_.inverse();
@@ -203,7 +195,6 @@ void WholeBodyController::updateState()
     transformationMatrixDotInverse_ = - transformationMatrix_.inverse() * transformationMatrixDot_ * transformationMatrix_.inverse();
 }
 
-
 Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> WholeBodyController::computeTransformationMatrix()
 {
     Eigen::Vector3d basePosition = T_world_base_.block<3,1>(0,3);
@@ -218,8 +209,11 @@ Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> WholeBodyController::com
     // Note: the iDynTree method getCenterOfMassJacobian only computes the positional part of the CoM jacobian,
     //       in order to also obtain the rotational part (assuming centroidal frame oriented as the world frame), the following computation is done:
 
+    Eigen::Matrix<double,6,6> centroidToBaseAdjointMatrixInverse = centroidToBaseAdjointMatrix;
+    centroidToBaseAdjointMatrixInverse.block<3,3>(0,3) = -centroidToBaseAdjointMatrixInverse.block<3,3>(0,3);
+
     Eigen::Matrix<double,6,6+numberOfJoints> centerOfMassFullJacobian = 
-                            centroidToBaseAdjointMatrix.inverse() * baseMassMatrix_.inverse() * selectionMatrix * massMatrix_;
+                            centroidToBaseAdjointMatrixInverse * massMatrixBase_.inverse() * selectionMatrix * massMatrix_;
 
     Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> transformationMatrix;
     transformationMatrix << centerOfMassFullJacobian , Eigen::Matrix<double,numberOfJoints,6>::Zero() , Eigen::Matrix<double,numberOfJoints,numberOfJoints>::Identity();
@@ -228,7 +222,7 @@ Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> WholeBodyController::com
 }
 
 void WholeBodyController::computeJacobians(Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> & stanceJacobian,
-                                                Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> & swingJacobian)
+                                           Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> & swingJacobian)
 {
     stanceJacobian.setZero();
     swingJacobian.setZero();
@@ -272,7 +266,6 @@ Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeSwingFootPositi
     return swingFootPosition;
 }
 
-
 Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeSwingFootVelocity()
 {
     Eigen::Vector<double,3*numberOfLegs> swingFootVelocity;
@@ -292,7 +285,6 @@ Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeSwingFootVeloci
 
     return swingFootVelocity;
 }
-
 
 void WholeBodyController::computeDerivatives()
 {
@@ -330,7 +322,6 @@ Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> WholeBodyController::compute
 
     return Dfr;
 }
-
 
 Eigen::Vector<double,6> WholeBodyController::computeDesiredWrench()
 {
@@ -410,26 +401,17 @@ void WholeBodyController::solveQP()
 
     Eigen::Vector<double,6> currentCoMVelocity;
     currentCoMVelocity << iDynTree::toEigen(kinDynComp_.getCenterOfMassVelocity()) , baseVel_.block<3,1>(3,0);
+    Eigen::Vector<double,6> gravityWrench;
+    gravityWrench << 0 , 0 , - totalMass_ * gravityAcceleration , 0 , 0 , 0;
 
-    qpMatrixbUB <<  0.0 ,
-                    0.0 ,
-                    - totalMass_ * gravityAcceleration ,
-                    0.0 ,
-                    0.0 ,
-                    0.0 ,
+    qpMatrixbUB <<  gravityWrench,
                     - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ,
                     Eigen::Vector<double,4*numberOfLegs>::Zero(),
                     maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
                     computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_,
                     qpOASES::INFTY * Eigen::Vector<double,3*numberOfLegs>::Ones();
 
-
-    qpMatrixbLB <<  0.0 ,
-                    0.0 ,
-                    - totalMass_ * gravityAcceleration ,
-                    0.0 ,
-                    0.0 ,
-                    0.0 ,
+    qpMatrixbLB <<  gravityWrench,
                     - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ,
                     -qpOASES::INFTY * Eigen::Vector<double,4*numberOfLegs>::Ones(),
                     - maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
@@ -471,7 +453,6 @@ Eigen::Vector<double,6+numberOfJoints> WholeBodyController::computeCoriolisBias(
     kinDynComp_.generalizedGravityForces(generalizedGravity);
     return (generalizedBias - generalizedGravity);
 }
-
 
 void WholeBodyController::computeJointTorques()
 {

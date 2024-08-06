@@ -101,7 +101,7 @@ class WholeBodyController
 
         // model quantities
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> massMatrix_;
-        Eigen::Matrix<double,6,6> baseMassMatrix_;
+        Eigen::Matrix<double,6,6> massMatrixBase_;
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> transformationMatrix_;
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> centroidMassMatrix_;
         Eigen::Matrix<double,numberOfJoints,numberOfJoints> centroidMassMatrixJoints_;
