@@ -288,7 +288,7 @@ Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeSwingFootVeloci
 
 void WholeBodyController::computeDerivatives()
 {
-    double timeStep = 1.0 / loopRate;
+    const double timeStep = 1.0 / loopRate;
 
     transformationMatrixDot_ = (transformationMatrix_ - oldTransformationMatrix_) / timeStep ; 
     centroidStanceJacobianDot_ = (centroidStanceJacobian_ - oldCentroidStanceJacobian_) / timeStep ;
@@ -379,6 +379,7 @@ void WholeBodyController::solveQP()
     qpMatrixQ.setIdentity();
     qpMatrixR.setIdentity();
 
+    // defined as Eigen::RowMajor because qpOASES expects arrays built by reading matrices by rows rather than columns
     Eigen::Matrix<double,qpNumberOfVariables,qpNumberOfVariables, Eigen::RowMajor> qpMatrixH =
                         groundReactionSelectionMatrix.transpose() * centroidStanceJacobianCoM_ *
                         qpMatrixQ * centroidStanceJacobianCoM_.transpose() * groundReactionSelectionMatrix
@@ -479,7 +480,7 @@ void WholeBodyController::controlLoop()
     ros::Rate rosRate(loopRate);
 
     double time = 0.0;
-    double deltaTime = 1.0 / loopRate;
+    const double deltaTime = 1.0 / loopRate;
 
 
     while (ros::ok())
