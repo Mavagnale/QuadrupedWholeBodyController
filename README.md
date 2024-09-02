@@ -12,6 +12,10 @@ make
 ```
 
 ### Install iDynTree
+Install iDynTree dependencies 
+```
+sudo apt-get install build-essential libeigen3-dev libxml2-dev coinor-libipopt-dev libassimp-dev libirrlicht-dev libglfw3-dev
+```
 ```
 cd lib/idyntree
 mkdir build && cd build
@@ -19,8 +23,8 @@ $ cmake -DCMAKE_INSTALL_PREFIX=<prefix> <additional_platform_specific_options> .
 $ make
 $ make install
 ```
-### Install ros_control
-`sudo apt-get install ros-noetic-ros-control ros-noetic-ros-controllers`
+### Install gazebo and ros_control
+`sudo apt-get install ros-noetic-gazebo-ros-pkgs ros-noetic-ros-control ros-noetic-ros-controllers`
 ### Compile package with catkin_make
 ```
 roscd
