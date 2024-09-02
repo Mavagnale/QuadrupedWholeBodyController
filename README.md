@@ -1,5 +1,6 @@
 # Installation
-### Clone the repository
+Starting from a ROS1-full installation
+### Clone the repository into ROS workspace
 `git clone https://github.com/Mavagnale/QuadrupedWholeBodyController.git`
 ### Update the submodules
 `git submodule update --recursive --init`
@@ -10,7 +11,6 @@ Install Eigen by copying the Eigen folder downloaded from [here](http://eigen.tu
 cd lib/qpOASES
 make
 ```
-
 ### Install iDynTree
 Install iDynTree dependencies 
 ```
@@ -23,11 +23,13 @@ $ cmake -DCMAKE_INSTALL_PREFIX=<prefix> <additional_platform_specific_options> .
 $ make
 $ make install
 ```
-### Install gazebo and ros_control
-`sudo apt-get install ros-noetic-gazebo-ros-pkgs ros-noetic-ros-control ros-noetic-ros-controllers`
+### Install ros_control
+`sudo apt-get install ros-noetic-ros-control ros-noetic-ros-controllers`
 ### Compile package with catkin_make
 ```
 roscd
 cd ..
 catkin_make
 ```
+## Run the whole body controller
+`roslaunch anymal_wbc wholeBodyController.launch`
