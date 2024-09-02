@@ -18,6 +18,7 @@ catkin_package(
 
 include_directories(
   include
+  lib/qpOASES/include
   ${catkin_INCLUDE_DIRS}
 )
 
