@@ -4,3 +4,9 @@
 [submodule "lib/idyntree"]
 	path = lib/idyntree
 	url = https://github.com/robotology/idyntree.git
+[submodule "lib/ifopt"]
+	path = lib/ifopt
+	url = https://github.com/ethz-adrl/ifopt.git
+[submodule "lib/towr"]
+	path = lib/towr
+	url = https://github.com/ethz-adrl/towr.git
