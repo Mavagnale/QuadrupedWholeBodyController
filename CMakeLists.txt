@@ -29,10 +29,14 @@ add_subdirectory(lib/ifopt)
 add_subdirectory(lib/towr/towr)
 
 add_library(WholeBodyController src/WholeBodyController.cpp)
-target_link_libraries(WholeBodyController PRIVATE iDynTree::idyntree-high-level iDynTree::idyntree-estimation qpOASES towr ${catkin_LIBRARIES})
+#target_link_libraries(WholeBodyController PRIVATE iDynTree::idyntree-high-level iDynTree::idyntree-estimation qpOASES ${catkin_LIBRARIES})
+target_link_libraries(WholeBodyController PRIVATE iDynTree::idyntree-high-level qpOASES ${catkin_LIBRARIES})
 
 add_executable(effortPublisher src/effortPublisher.cpp)
 target_link_libraries(effortPublisher ${catkin_LIBRARIES})
 
 add_executable(wholeBodyControllerNode src/wholeBodyControllerNode.cpp)
 target_link_libraries(wholeBodyControllerNode WholeBodyController ${catkin_LIBRARIES})
+
+add_executable(referencePublisher src/ReferencePublisher.cpp)
+target_link_libraries(referencePublisher towr ifopt_ipopt ${catkin_LIBRARIES})
