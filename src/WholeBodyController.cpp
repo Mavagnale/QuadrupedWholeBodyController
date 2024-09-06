@@ -82,6 +82,7 @@ void WholeBodyController::setInitialState()
 
     massMatrixBase_.setIdentity();
     centroidMassMatrix_.setIdentity();
+    centroidMassMatrixBase_.setIdentity();
     centroidMassMatrixJoints_.setIdentity();
     centroidStanceJacobian_.setIdentity();
     centroidSwingJacobian_.setIdentity();
@@ -170,6 +171,7 @@ void WholeBodyController::updateState()
     transformationMatrix_ = computeTransformationMatrix();
 
     centroidMassMatrix_ =  transformationMatrix_.inverse().transpose() * massMatrix_ * transformationMatrix_.inverse();
+    centroidMassMatrixBase_ = centroidMassMatrix_.block<6,6>(0,0);
     centroidMassMatrixJoints_ = centroidMassMatrix_.block<numberOfJoints,numberOfJoints>(6,6);
 
     Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> stanceJacobian;
@@ -393,7 +395,7 @@ void WholeBodyController::solveQP()
 
     Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> Dfr = computeNonSlidingConstraints();
 
-    qpMatrixA << centroidMassMatrix_.block<6,6>(0,0)            , Eigen::Matrix<double,6,numberOfJoints>::Zero()              , -centroidStanceJacobianCoM_.transpose()                     , Eigen::Matrix<double,6,3*numberOfLegs>::Zero()                     ,
+    qpMatrixA << centroidMassMatrixBase_                        , Eigen::Matrix<double,6,numberOfJoints>::Zero()              , -centroidStanceJacobianCoM_.transpose()                     , Eigen::Matrix<double,6,3*numberOfLegs>::Zero()                     ,
                  centroidStanceJacobianCoM_                     , centroidStanceJacobianJoints_                               , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero() , Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Zero()        ,
                  Eigen::Matrix<double,4*numberOfLegs,6>::Zero() , Eigen::Matrix<double,4*numberOfLegs,numberOfJoints>::Zero() , Dfr                                                         , Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs>::Zero()        ,
                  Eigen::Matrix<double,numberOfJoints,6>::Zero() , centroidMassMatrixJoints_                                   , -centroidStanceJacobianJoints_.transpose()                  , Eigen::Matrix<double,numberOfJoints,3*numberOfLegs>::Zero()        , 

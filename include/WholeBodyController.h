@@ -104,6 +104,7 @@ class WholeBodyController
         Eigen::Matrix<double,6,6> massMatrixBase_;
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> transformationMatrix_;
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> centroidMassMatrix_;
+        Eigen::Matrix<double,6,6> centroidMassMatrixBase_;
         Eigen::Matrix<double,numberOfJoints,numberOfJoints> centroidMassMatrixJoints_;
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> centroidStanceJacobian_;
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> centroidSwingJacobian_;
