@@ -19,6 +19,7 @@
 // qpOASES
 #include <qpOASES.hpp>
 
+const std::string modelName = "anymalModel";
 const int numberOfJoints = 12;
 const int numberOfLegs = 4;
 const double gravityAcceleration = 9.81;
@@ -27,10 +28,12 @@ const int qpNumberOfConstraints = 6 + 3*numberOfLegs + 4*numberOfLegs + numberOf
 const double friction = 1;
 const double loopRate = 500;
 const double maxTorque = 80;
+
 const double kpValue = 6000;
-const double kdValue = 600;
-const double kpSwingValue = 6000;
-const double kdSwingValue = 600;
+const double kdValue = 1800;
+const double kiValue = 1000;
+const double kpSwingValue = 1000;
+const double kdSwingValue = 200;
 
 
 class WholeBodyController
@@ -43,7 +46,7 @@ class WholeBodyController
     
 		void floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg);
 		void jointStateCallback(sensor_msgs::JointState jointStateMsg);
-		void centerOfMassReferenceCallback(std_msgs::Float64MultiArray refMsg);
+		void referenceCallback(std_msgs::Float64MultiArray refMsg);
 
         void updateState();
 
@@ -74,17 +77,20 @@ class WholeBodyController
 
         ros::Subscriber floatingBaseStateSub_;
         ros::Subscriber jointStateSub_;
-        ros::Subscriber centerOfMassReferenceSub_;
+        ros::Subscriber plannerReferenceSub_;
 
         bool initStatus_;
         bool firstJointStateCallback_;
+        bool firstFloatingBaseStateCallback;
         bool firstControllerIteration_;
 
         // iDynTree structs
+        std::string modelName_;
         iDynTree::ModelLoader mdlLoader_;
         iDynTree::KinDynComputations kinDynComp_;
         iDynTree::Model model_;
         int jointIndex_[numberOfJoints];
+        int modelIndex_;
 
         // state variables
         Eigen::Matrix4d T_world_base_;
@@ -95,6 +101,8 @@ class WholeBodyController
 
         // references
         Eigen::Vector<double,6> desiredPose_;
+        Eigen::Vector<double,6> desiredCoMVelocity_;
+        Eigen::Vector<double,6> desiredCoMAcceleration_;
         Eigen::Vector<double,3*numberOfLegs> desiredSwingLegsAcceleration_;
         Eigen::Vector<double,3*numberOfLegs> desiredSwingLegsVelocity_;
         Eigen::Vector<double,3*numberOfLegs> desiredSwingLegsPosition_;
@@ -127,6 +135,7 @@ class WholeBodyController
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> centroidStanceJacobianDot_;
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> oldCentroidSwingJacobian_;
         Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> centroidSwingJacobianDot_;
+        Eigen::Vector<double,6> integralError_;
 
         // quadratic problem
         qpOASES::SQProblem quadraticProblem_;

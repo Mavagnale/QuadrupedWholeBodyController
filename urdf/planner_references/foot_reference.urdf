@@ -1,0 +1,20 @@
+<robot name="foot_reference">
+  <link name="foot_reference_link">
+    <inertial>
+      <origin xyz="0 0 0" />
+      <mass value="1e-5" />
+      <inertia  ixx="1e-5" ixy="0.0"  ixz="0.0"  iyy="1e-5"  iyz="0.0"  izz="1e-5" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <sphere radius="0.02"/>
+      </geometry>
+    </visual>
+  </link>
+  <gazebo reference="foot_reference_link">
+    <material>Gazebo/Black</material>
+  <static>true</static>
+    <turnGravityOff>true</turnGravityOff>      
+  </gazebo>
+</robot>
