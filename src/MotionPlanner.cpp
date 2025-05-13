@@ -1,4 +1,4 @@
-#include "MotionPlanner.h"
+#include "anymal_wbc/MotionPlanner.hpp"
 
 MotionPlanner::MotionPlanner()
 {
@@ -9,7 +9,7 @@ MotionPlanner::MotionPlanner()
     formulation_.terrain_ = std::make_shared<towr::FlatGround>(0.0);
 
     // Kinematic limits and dynamic parameters of the robot
-    formulation_.model_ = towr::RobotModel(towr::RobotModel::AnymalD);
+    formulation_.model_ = towr::RobotModel(towr::RobotModel::Anymal); // to add AnymalD
 
     // set the initial position of the robot
 	formulation_.initial_base_.lin.at(towr::kPos) << 0.00, 0.00, 0.48;

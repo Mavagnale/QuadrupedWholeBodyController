@@ -31,11 +31,8 @@ add_subdirectory(lib/towr/towr)
 add_library(WholeBodyController src/WholeBodyController.cpp)
 target_link_libraries(WholeBodyController PRIVATE iDynTree::idyntree-high-level qpOASES ${catkin_LIBRARIES})
 
-add_executable(effortPublisher src/effortPublisher.cpp)
-target_link_libraries(effortPublisher ${catkin_LIBRARIES})
+add_executable(whole_body_controller_node src/WholeBodyControllerNode.cpp)
+target_link_libraries(whole_body_controller_node WholeBodyController ${catkin_LIBRARIES})
 
-add_executable(wholeBodyControllerNode src/wholeBodyControllerNode.cpp)
-target_link_libraries(wholeBodyControllerNode WholeBodyController ${catkin_LIBRARIES})
-
-add_executable(motionPlanner src/MotionPlanner.cpp)
-target_link_libraries(motionPlanner towr ifopt_ipopt ${catkin_LIBRARIES})
+add_executable(motion_planner_node src/MotionPlanner.cpp)
+target_link_libraries(motion_planner_node towr ifopt_ipopt ${catkin_LIBRARIES})

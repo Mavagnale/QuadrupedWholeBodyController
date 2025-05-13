@@ -1,5 +1,5 @@
-#ifndef WHOLE_BODY_CONTROLLER_H
-#define WHOLE_BODY_CONTROLLER_H
+#ifndef WHOLE_BODY_CONTROLLER_HPP
+#define WHOLE_BODY_CONTROLLER_HPP
 
 // ROS
 #include <ros/ros.h>
@@ -152,4 +152,4 @@ class WholeBodyController
         Eigen::Vector<double,6+numberOfJoints+3*numberOfLegs> qpSolution_;
 };
 
-#endif
+#endif // WHOLE_BODY_CONTROLLER_HPP

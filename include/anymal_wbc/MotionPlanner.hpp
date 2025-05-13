@@ -1,5 +1,5 @@
-#ifndef MOTION_PLANNER_H
-#define MOTION_PLANNER_H
+#ifndef MOTION_PLANNER_HPP
+#define MOTION_PLANNER_HPP
 
 // ROS
 #include <ros/ros.h>
@@ -48,4 +48,4 @@ class MotionPlanner
 
 };
 
-#endif //MOTION_PLANNER_H
+#endif //MOTION_PLANNER_HPP

@@ -1,4 +1,4 @@
-#include "WholeBodyController.h"
+#include "anymal_wbc/WholeBodyController.hpp"
 
 Eigen::Matrix3d skewOperator( Eigen::Vector3d v )
 {
