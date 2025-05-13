@@ -26,7 +26,7 @@ const double gravityAcceleration = 9.81;
 const int qpNumberOfVariables = 6 + numberOfJoints + 3*numberOfLegs + 3*numberOfLegs; // CoM accelerations + joints accelerations + ground reaction forces + slack variables
 const int qpNumberOfConstraints = 6 + 3*numberOfLegs + 4*numberOfLegs + numberOfJoints + 6*numberOfLegs; // dynamics constraints + stance feet constraints + non-sliding constraints + torque limit constraints + swing legs constraints
 const double friction = 1;
-const double loopRate = 500;
+const double loopRate = 400;
 const double maxTorque = 80;
 
 const double kpValue = 6000;
