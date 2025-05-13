@@ -40,6 +40,7 @@ WholeBodyController::WholeBodyController() : initStatus_(1) ,
     model_ = kinDynComp_.model();
 
     jointTorquePub_ = nh_.advertise<std_msgs::Float64MultiArray>("/anymal/joint_effort_group_controller/command", 10);
+    centerOfMassPub_ = nh_.advertise<geometry_msgs::Pose>("/anymal/com", 10);
 
     floatingBaseStateSub_ = nh_.subscribe("/gazebo/model_states" , 0 , &WholeBodyController::floatingBaseStateCallback , this);
     jointStateSub_ = nh_.subscribe("/anymal/joint_states" , 0 , &WholeBodyController::jointStateCallback , this);
@@ -554,6 +555,12 @@ void WholeBodyController::controlLoop()
         std::cout << "Actual com position:\n";
         std::cout << centerOfMassPosition_ << "\n\n";
         std::cout << "---------------------------" << "\n\n";
+
+        geometry_msgs::Pose comMsg;
+        comMsg.position.x = centerOfMassPosition_(0);
+        comMsg.position.y = centerOfMassPosition_(1);
+        comMsg.position.z = centerOfMassPosition_(2);
+        centerOfMassPub_.publish(comMsg);
 
         rosRate.sleep();
         time = time + deltaTime;

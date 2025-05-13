@@ -74,6 +74,7 @@ class WholeBodyController
         ros::NodeHandle nh_;
         
         ros::Publisher jointTorquePub_;
+        ros::Publisher centerOfMassPub_;
 
         ros::Subscriber floatingBaseStateSub_;
         ros::Subscriber jointStateSub_;
