@@ -31,7 +31,7 @@ const double maxTorque = 80;
 
 const double kpValue = 6000;
 const double kdValue = 1800;
-const double kiValue = 1000;
+const double kiValue = 0;
 const double kpSwingValue = 1000;
 const double kdSwingValue = 200;
 

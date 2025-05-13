@@ -382,7 +382,7 @@ Eigen::Vector<double,6> WholeBodyController::computeDesiredWrench()
     Eigen::Matrix<double,6,6> kpMatrix = kpValue * Eigen::Matrix<double,6,6>::Identity();
     kpMatrix(2,2) = 10000;
     Eigen::Matrix<double,6,6> kdMatrix = kdValue * Eigen::Matrix<double,6,6>::Identity();
-    Eigen::Matrix<double,6,6> kiMatrix = kdValue * Eigen::Matrix<double,6,6>::Identity();
+    Eigen::Matrix<double,6,6> kiMatrix = kiValue * Eigen::Matrix<double,6,6>::Identity();
 
     Eigen::Matrix3d currentOrientation = T_world_base_.block<3,3>(0,0);
     Eigen::Vector<double,3> currentAttitude = eulAnglesRPY(currentOrientation);    
