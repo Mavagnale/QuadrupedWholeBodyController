@@ -4,51 +4,7 @@
     <include file="$(find anymal_wbc)/launch/spawn.launch">
     </include>
 
+    <rosparam command="load" file="$(find anymal_wbc)/config/params.yaml" ns="anymal_wbc"/>
     <node name="wholeBodyControllerNode" pkg="anymal_wbc" type="wholeBodyControllerNode" output="screen"/>
-    
-    <node name="spawn_body_reference" pkg="gazebo_ros" type="spawn_model"
-    args="-file $(find anymal_wbc)/urdf/planner_references/body_reference.urdf -urdf 
-            -x 0.0
-            -y 0.0
-            -z -10.0
-            -model body_reference"
-    respawn="false" output="screen">
-    </node>    
-
-    <node name="spawn_LH_reference" pkg="gazebo_ros" type="spawn_model"
-    args="-file $(find anymal_wbc)/urdf/planner_references/foot_reference.urdf -urdf 
-            -x 0.0
-            -y 0.0
-            -z -10.0
-            -model LH_reference"
-    respawn="false" output="screen">
-    </node>        
-
-    <node name="spawn_LF_reference" pkg="gazebo_ros" type="spawn_model"
-    args="-file $(find anymal_wbc)/urdf/planner_references/foot_reference.urdf -urdf 
-            -x 0.0
-            -y 0.0
-            -z -10.0
-            -model LF_reference"
-    respawn="false" output="screen">
-    </node>   
-
-    <node name="spawn_RF_reference" pkg="gazebo_ros" type="spawn_model"
-    args="-file $(find anymal_wbc)/urdf/planner_references/foot_reference.urdf -urdf 
-            -x 0.0
-            -y 0.0
-            -z -10.0
-            -model RF_reference"
-    respawn="false" output="screen">
-    </node>   
-
-    <node name="spawn_RH_reference" pkg="gazebo_ros" type="spawn_model"
-    args="-file $(find anymal_wbc)/urdf/planner_references/foot_reference.urdf -urdf 
-            -x 0.0
-            -y 0.0
-            -z -10.0
-            -model RH_reference"
-    respawn="false" output="screen">
-    </node>               
 
 </launch>
