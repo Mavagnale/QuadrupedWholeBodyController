@@ -44,17 +44,17 @@
         -model anymalModel
         -x 0.0
         -y 0.0
-        -z 0.585
-        -J LF_HAA 0.03
+        -z 0.60
+        -J LF_HAA 0.0
         -J LF_HFE 0.4
         -J LF_KFE -0.8
-        -J RF_HAA -0.03
+        -J RF_HAA 0.0
         -J RF_HFE 0.4
         -J RF_KFE -0.8
-        -J LH_HAA 0.03
+        -J LH_HAA 0.0
         -J LH_HFE -0.4
         -J LH_KFE 0.8
-        -J RH_HAA -0.03
+        -J RH_HAA 0.0
         -J RH_HFE -0.4
         -J RH_KFE 0.8" />
 

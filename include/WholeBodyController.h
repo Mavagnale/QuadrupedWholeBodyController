@@ -25,15 +25,6 @@ const int numberOfLegs = 4;
 const double gravityAcceleration = 9.81;
 const int qpNumberOfVariables = 6 + numberOfJoints + 3*numberOfLegs + 3*numberOfLegs; // CoM accelerations + joints accelerations + ground reaction forces + slack variables
 const int qpNumberOfConstraints = 6 + 3*numberOfLegs + 4*numberOfLegs + numberOfJoints + 6*numberOfLegs; // dynamics constraints + stance feet constraints + non-sliding constraints + torque limit constraints + swing legs constraints
-const double friction = 1;
-const double loopRate = 400;
-const double maxTorque = 80;
-
-const double kpValue = 6000;
-const double kdValue = 1800;
-const double kiValue = 0;
-const double kpSwingValue = 1000;
-const double kdSwingValue = 200;
 
 
 class WholeBodyController
@@ -51,6 +42,8 @@ class WholeBodyController
         void updateState();
 
         void setInitialState();
+        void loadParameters();
+
         void computeJointTorques();
         void computeDerivatives();
         void solveQP();
@@ -84,6 +77,22 @@ class WholeBodyController
         bool firstJointStateCallback_;
         bool firstFloatingBaseStateCallback;
         bool firstControllerIteration_;
+
+        // parameters
+        struct {
+            std::string modelName;
+            double friction;
+            double loopRate;
+            double maxTorque;
+            double kpValue;
+            double kpValueZ;
+            double kdValue;
+            double kiValue;
+            double kpSwingValue;
+            double kdSwingValue;
+            double slackWeight;
+            std::vector<double> refData;
+        } params;
 
         // iDynTree structs
         std::string modelName_;

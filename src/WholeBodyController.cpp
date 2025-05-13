@@ -46,6 +46,9 @@ WholeBodyController::WholeBodyController() : initStatus_(1) ,
     jointStateSub_ = nh_.subscribe("/anymal/joint_states" , 0 , &WholeBodyController::jointStateCallback , this);
     plannerReferenceSub_ = nh_.subscribe("/anymal/reference" , 0 , &WholeBodyController::referenceCallback , this);
 
+    // load parameters
+    loadParameters();
+    
     // initialize robot state
     setInitialState();
 
@@ -73,7 +76,7 @@ void WholeBodyController::setInitialState()
     gravity_ << 0.0 , 0.0 , gravityAcceleration;
 
     // todo: get the actual first position of the robot joints instead of the hard-coded one
-    jointPos_ << 0.03 , -0.4 , 0.8 , 0.03 , 0.4 , -0.8 , -0.03 , 0.4 , -0.8 , -0.03 , -0.4 , 0.8; 
+    jointPos_ << 0.0 , -0.4 , 0.8 , 0.0 , 0.4 , -0.8 , 0.0 , 0.4 , -0.8 , 0.0 , -0.4 , 0.8; 
     T_world_base_.block<3,1>(0,3) << 0.0 , 0.0 , 0.60;
 
     massMatrix_.setIdentity();
@@ -99,7 +102,13 @@ void WholeBodyController::setInitialState()
     centroidSwingJacobianDot_.setZero();
     centerOfMassPosition_.setZero();
 
-    desiredPose_ = { 0.0 , 0.0 , 0.48 , 0.0 , 0.0 , 0.0 };
+    // set the initial reference pose
+    for (int i = 0; i < 6; ++i) 
+    {
+        desiredPose_(i) = params.refData[i];
+    }
+    ROS_INFO_STREAM("Loaded reference pose: " << desiredPose_.transpose());
+
     desiredCoMVelocity_.setZero();
     desiredCoMAcceleration_.setZero();
     desiredSwingLegsAcceleration_.setZero();
@@ -107,6 +116,34 @@ void WholeBodyController::setInitialState()
     desiredSwingLegsPosition_.setZero();    
 
     integralError_.setZero();
+}
+
+void WholeBodyController::loadParameters()
+{   
+    if (!nh_.getParam("/anymal_wbc/modelName", params.modelName))
+        ROS_ERROR("Failed to get param 'modelName'");
+    if (!nh_.getParam("/anymal_wbc/friction", params.friction))
+        ROS_ERROR("Failed to get param 'friction'");
+    if (!nh_.getParam("/anymal_wbc/kpValue", params.kpValue))
+        ROS_ERROR("Failed to get param 'kpValue'");
+    if (!nh_.getParam("/anymal_wbc/kpValueZ", params.kpValueZ))
+        ROS_ERROR("Failed to get param 'kpValueZ'");
+    if (!nh_.getParam("/anymal_wbc/kdValue", params.kdValue))
+        ROS_ERROR("Failed to get param 'kdValue'");
+    if (!nh_.getParam("/anymal_wbc/kiValue", params.kiValue))
+        ROS_ERROR("Failed to get param 'kiValue'");
+    if (!nh_.getParam("/anymal_wbc/kpSwingValue", params.kpSwingValue))
+        ROS_ERROR("Failed to get param 'kpSwingValue'");
+    if (!nh_.getParam("/anymal_wbc/kdSwingValue", params.kdSwingValue))
+        ROS_ERROR("Failed to get param 'kdSwingValue'");
+    if (!nh_.getParam("/anymal_wbc/loopRate", params.loopRate))
+        ROS_ERROR("Failed to get param 'loopRate'");
+    if (!nh_.getParam("/anymal_wbc/maxTorque", params.maxTorque))
+        ROS_ERROR("Failed to get param 'maxTorque'");
+    if (!nh_.getParam("/anymal_wbc/slackWeight", params.slackWeight))
+        ROS_ERROR("Failed to get param 'slackWeight'");       
+    if (!nh_.getParam("/anymal_wbc/initialReferencePose", params.refData)) 
+        ROS_ERROR("Failed to get param 'initialReferencePose'");
 }
 
 void WholeBodyController::referenceCallback(std_msgs::Float64MultiArray refMsg)
@@ -342,7 +379,7 @@ Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeSwingFootVeloci
 
 void WholeBodyController::computeDerivatives()
 {
-    const double timeStep = 1.0 / loopRate;
+    const double timeStep = 1.0 / params.loopRate;
 
     transformationMatrixDot_ = (transformationMatrix_ - oldTransformationMatrix_) / timeStep ; 
     centroidStanceJacobianDot_ = (centroidStanceJacobian_ - oldCentroidStanceJacobian_) / timeStep ;
@@ -362,10 +399,10 @@ Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> WholeBodyController::compute
     const Eigen::Vector3d normalVector = {0.0 , 0.0 , 1.0};
 
     Eigen::Matrix<double,4,3> D;
-    D << (tangentialVector1 - friction*normalVector).transpose() ,
-        -(tangentialVector1 + friction*normalVector).transpose() ,
-         (tangentialVector2 - friction*normalVector).transpose() ,
-        -(tangentialVector2 + friction*normalVector).transpose() ;
+    D << (tangentialVector1 - params.friction*normalVector).transpose() ,
+        -(tangentialVector1 + params.friction*normalVector).transpose() ,
+         (tangentialVector2 - params.friction*normalVector).transpose() ,
+        -(tangentialVector2 + params.friction*normalVector).transpose() ;
 
     Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> Dfr;
     Dfr.setZero();
@@ -380,10 +417,10 @@ Eigen::Matrix<double,4*numberOfLegs,3*numberOfLegs> WholeBodyController::compute
 Eigen::Vector<double,6> WholeBodyController::computeDesiredWrench()
 {
     Eigen::Vector<double,6> desiredWrench;
-    Eigen::Matrix<double,6,6> kpMatrix = kpValue * Eigen::Matrix<double,6,6>::Identity();
-    kpMatrix(2,2) = 10000;
-    Eigen::Matrix<double,6,6> kdMatrix = kdValue * Eigen::Matrix<double,6,6>::Identity();
-    Eigen::Matrix<double,6,6> kiMatrix = kiValue * Eigen::Matrix<double,6,6>::Identity();
+    Eigen::Matrix<double,6,6> kpMatrix = params.kpValue * Eigen::Matrix<double,6,6>::Identity();
+    kpMatrix(2,2) = params.kpValueZ;
+    Eigen::Matrix<double,6,6> kdMatrix = params.kdValue * Eigen::Matrix<double,6,6>::Identity();
+    Eigen::Matrix<double,6,6> kiMatrix = params.kiValue * Eigen::Matrix<double,6,6>::Identity();
 
     Eigen::Matrix3d currentOrientation = T_world_base_.block<3,3>(0,0);
     Eigen::Vector<double,3> currentAttitude = eulAnglesRPY(currentOrientation);    
@@ -402,15 +439,15 @@ Eigen::Vector<double,6> WholeBodyController::computeDesiredWrench()
                     + gravityWrench
                     + centroidMassMatrixBase_ * desiredCoMAcceleration_;
 
-    integralError_ = integralError_ + (currentPose - desiredPose_)/loopRate; 
+    integralError_ = integralError_ + (currentPose - desiredPose_)/params.loopRate; 
 
     return desiredWrench;
 }
 
 Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeCommandedAccelerationSwingLegs()
 {
-    Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs> kpSwingMatrix = kpSwingValue * Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity();
-    Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs> kdSwingMatrix = kdSwingValue * Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity();
+    Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs> kpSwingMatrix = params.kpSwingValue * Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity();
+    Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs> kdSwingMatrix = params.kdSwingValue * Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity();
 
     Eigen::Vector<double,3*numberOfLegs> commandedAccelerationSwingLegs = desiredSwingLegsAcceleration_ +
                                                                           kdSwingMatrix * ( desiredSwingLegsVelocity_ - computeSwingFootVelocity() ) +
@@ -436,7 +473,7 @@ void WholeBodyController::solveQP()
     qpMatrixQ.setIdentity();
     qpMatrixR.setIdentity();
     int slackVarIndex = 6 + numberOfJoints + 3*numberOfLegs;
-    qpMatrixR.block<3*numberOfLegs, 3*numberOfLegs>(slackVarIndex,slackVarIndex) = 10 * Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity();
+    qpMatrixR.block<3*numberOfLegs, 3*numberOfLegs>(slackVarIndex,slackVarIndex) = params.slackWeight * Eigen::Matrix<double,3*numberOfLegs,3*numberOfLegs>::Identity();
 
     // defined as Eigen::RowMajor because qpOASES expects arrays built by reading matrices by rows rather than columns
     Eigen::Matrix<double,qpNumberOfVariables,qpNumberOfVariables, Eigen::RowMajor> qpMatrixH =
@@ -467,14 +504,14 @@ void WholeBodyController::solveQP()
     qpMatrixbUB <<  - gravityWrench,
                     - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ,
                     Eigen::Vector<double,4*numberOfLegs>::Zero(),
-                    maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
+                    params.maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
                     computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_,
                     qpOASES::INFTY * Eigen::Vector<double,3*numberOfLegs>::Ones();
 
     qpMatrixbLB <<  - gravityWrench,
                     - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ,
                     -qpOASES::INFTY * Eigen::Vector<double,4*numberOfLegs>::Ones(),
-                    - maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
+                    - params.maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
                     -qpOASES::INFTY * Eigen::Vector<double,3*numberOfLegs>::Ones(),
                     computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_;
 
@@ -535,12 +572,10 @@ void WholeBodyController::computeJointTorques()
 
 void WholeBodyController::controlLoop()
 {
-
-    ros::Rate rosRate(loopRate);
+    ros::Rate rosRate(params.loopRate);
 
     double time = 0.0;
-    const double deltaTime = 1.0 / loopRate;
-
+    const double deltaTime = 1.0 / params.loopRate;
 
     while (ros::ok())
     {
