@@ -41,6 +41,7 @@ WholeBodyController::WholeBodyController() : initStatus_(1) ,
 
     jointTorquePub_ = nh_.advertise<std_msgs::Float64MultiArray>("/anymal/joint_effort_group_controller/command", 10);
     centerOfMassPub_ = nh_.advertise<geometry_msgs::Pose>("/anymal/com", 10);
+    gazeboPub_ = nh_.advertise<gazebo_msgs::ModelState>("/gazebo/set_model_state", 0);
 
     floatingBaseStateSub_ = nh_.subscribe("/gazebo/model_states" , 0 , &WholeBodyController::floatingBaseStateCallback , this);
     jointStateSub_ = nh_.subscribe("/anymal/joint_states" , 0 , &WholeBodyController::jointStateCallback , this);
@@ -570,10 +571,42 @@ void WholeBodyController::computeJointTorques()
     jointTorquePub_.publish(commandMsg);
 }
 
+void WholeBodyController::resetRobotSimState()
+{
+    ros::Rate rosRate(params.loopRate);
+
+    double time = 0.0;
+    const double deltaTime = 1.0 / params.loopRate;
+    double resetTime = 0.3;
+    double zOffset = 0.1;
+
+
+    // needed to let the controllers load in gazebo
+    while (time <= resetTime)
+    {
+        gazebo_msgs::ModelState stateMsg;
+        stateMsg.model_name = params.modelName;
+        stateMsg.reference_frame = "world";	
+        geometry_msgs::Pose pose;
+        // todo: use the base pose instead of the com pose
+        pose.position.x = desiredPose_(0);
+        pose.position.y = desiredPose_(1);
+        pose.position.z = desiredPose_(2) + zOffset;        
+        stateMsg.pose = pose;
+        gazeboPub_.publish(stateMsg);
+
+        setInitialState();
+        rosRate.sleep();
+        time = time + deltaTime;
+    }
+}
+
 void WholeBodyController::controlLoop()
 {
     ros::Rate rosRate(params.loopRate);
 
+    resetRobotSimState();
+    
     double time = 0.0;
     const double deltaTime = 1.0 / params.loopRate;
 

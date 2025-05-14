@@ -6,6 +6,7 @@
 #include <ros/package.h>
 #include <std_msgs/Float64MultiArray.h>
 #include <gazebo_msgs/ModelStates.h>
+#include <gazebo_msgs/ModelState.h>
 #include <sensor_msgs/JointState.h>
 #include <boost/thread.hpp>
 #include <Eigen/Core>
@@ -60,7 +61,7 @@ class WholeBodyController
         Eigen::Vector<double,3*numberOfLegs> computeSwingFootVelocity();
         
 
-
+        void resetRobotSimState();
         void controlLoop();
 
     private:
@@ -68,6 +69,7 @@ class WholeBodyController
         
         ros::Publisher jointTorquePub_;
         ros::Publisher centerOfMassPub_;
+        ros::Publisher gazeboPub_;
 
         ros::Subscriber floatingBaseStateSub_;
         ros::Subscriber jointStateSub_;
