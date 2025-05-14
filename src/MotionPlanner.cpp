@@ -60,9 +60,9 @@ void MotionPlanner::plannerLoop()
     solver->SetOption("jacobian_approximation", "exact"); // "finite difference-values"
     solver->SetOption("max_cpu_time", 20.0);
 
-    std::cout << "Solving...\n";
+    ROS_INFO_STREAM("Solving...");
     solver->Solve(nlp);
-    std::cout << "\nSolving done, publishing...\n";
+    ROS_INFO_STREAM("Solving done, publishing...");
 
     double t = 0;
     ros::Rate rosRate(loopRate);
@@ -95,7 +95,7 @@ void MotionPlanner::plannerLoop()
         publishReference();
         publishGraphicReference();
 
-        std::cout << "Time elapsed: " << t << std::endl;
+        ROS_INFO_STREAM("Time elapsed: " << t);
         t = t  + 1/loopRate;
         
         rosRate.sleep();

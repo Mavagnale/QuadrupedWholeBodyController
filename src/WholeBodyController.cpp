@@ -27,14 +27,14 @@ WholeBodyController::WholeBodyController() : initStatus_(1) ,
     initStatus_ = mdlLoader_.loadModelFromFile(modelFile);
     if ( !initStatus_ )
     {
-        std::cerr << "KinDynComputationsWithEigen: impossible to load model from " << modelFile << std::endl;
+        ROS_ERROR_STREAM("KinDynComputationsWithEigen: impossible to load model from " << modelFile);
     }
 
     initStatus_ = kinDynComp_.loadRobotModel(mdlLoader_.model());
     if( !initStatus_ )
     {
-        std::cerr << "KinDynComputationsWithEigen: impossible to load the following model in a KinDynComputations class:"
-                  << std::endl << mdlLoader_.model().toString() << std::endl;
+        ROS_ERROR_STREAM("KinDynComputationsWithEigen: impossible to load the following model in a KinDynComputations class:"
+                          << std::endl << mdlLoader_.model().toString());
     }
 
     model_ = kinDynComp_.model();
@@ -148,7 +148,7 @@ void WholeBodyController::loadParameters()
 
 void WholeBodyController::referenceCallback(std_msgs::Float64MultiArray refMsg)
 {
-    std::cout <<"Reference acquired\n";
+    ROS_INFO("Reference acquired");
 
     for (int i = 0 ; i < 6 ; i++)
     {
@@ -583,13 +583,10 @@ void WholeBodyController::controlLoop()
         solveQP();
         computeJointTorques();
 
-        std::cout << "time: " << time << " s\n";
-
-        std::cout << "Desired com position:\n";
-        std::cout << desiredPose_.block<3,1>(0,0) << "\n\n";
-        std::cout << "Actual com position:\n";
-        std::cout << centerOfMassPosition_ << "\n\n";
-        std::cout << "---------------------------" << "\n\n";
+        ROS_INFO_STREAM("time: " << time << " s");
+        ROS_INFO_STREAM ("Desired com position: " << desiredPose_.head<3>().transpose() );
+        ROS_INFO_STREAM ("Actual com position: " << centerOfMassPosition_.transpose() );
+        ROS_INFO_STREAM ("---------------------------");
 
         geometry_msgs::Pose comMsg;
         comMsg.position.x = centerOfMassPosition_(0);
