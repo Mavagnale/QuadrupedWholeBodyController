@@ -499,22 +499,23 @@ void WholeBodyController::solveQP()
 
     Eigen::Vector<double,6> currentCoMVelocity;
     currentCoMVelocity << iDynTree::toEigen(kinDynComp_.getCenterOfMassVelocity()) , baseVel_.block<3,1>(3,0);
+    Eigen::Vector<double,numberOfJoints> currentJointVelocities = jointVel_;    // avoid race condition with the jointStateCallback    
     Eigen::Vector<double,6> gravityWrench;
     gravityWrench << 0 , 0 , totalMass_ * gravityAcceleration , 0 , 0 , 0;
 
     qpMatrixbUB <<  - gravityWrench,
-                    - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ,
+                    - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*currentJointVelocities ,
                     Eigen::Vector<double,4*numberOfLegs>::Zero(),
                     params.maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
-                    computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_,
+                    computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*currentJointVelocities,
                     qpOASES::INFTY * Eigen::Vector<double,3*numberOfLegs>::Ones();
 
     qpMatrixbLB <<  - gravityWrench,
-                    - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ,
+                    - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*currentJointVelocities ,
                     -qpOASES::INFTY * Eigen::Vector<double,4*numberOfLegs>::Ones(),
                     - params.maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
                     -qpOASES::INFTY * Eigen::Vector<double,3*numberOfLegs>::Ones(),
-                    computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_;
+                    computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*currentJointVelocities;
 
 	qpOASES::int_t nWSR = 100;
     qpOASES::Options myOptions;
@@ -577,8 +578,8 @@ void WholeBodyController::resetRobotSimState()
 
     double time = 0.0;
     const double deltaTime = 1.0 / params.loopRate;
-    double resetTime = 0.3;
-    double zOffset = 0.1;
+    double resetTime = 0.5;
+    double zOffset = 0.05;
 
 
     // needed to let the controllers load in gazebo
