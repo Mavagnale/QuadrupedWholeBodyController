@@ -616,7 +616,7 @@ void WholeBodyController::controlLoop()
         solveQP();
         computeJointTorques();
 
-        ROS_INFO_STREAM("time: " << time << " s");
+        ROS_INFO_STREAM ("Elapsed time: " << time << " s");
         ROS_INFO_STREAM ("Desired com position: " << desiredPose_.head<3>().transpose() );
         ROS_INFO_STREAM ("Actual com position: " << centerOfMassPosition_.transpose() );
         ROS_INFO_STREAM ("---------------------------");

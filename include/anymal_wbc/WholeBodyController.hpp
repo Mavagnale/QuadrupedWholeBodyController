@@ -151,7 +151,7 @@ class WholeBodyController
 
         // quadratic problem
         qpOASES::SQProblem quadraticProblem_;
-        Eigen::Vector<double,6+numberOfJoints+3*numberOfLegs> qpSolution_;
+        Eigen::Vector<double,qpNumberOfVariables> qpSolution_;
 };
 
 #endif // WHOLE_BODY_CONTROLLER_HPP
