@@ -9,4 +9,4 @@
 	url = https://github.com/ethz-adrl/ifopt.git
 [submodule "lib/towr"]
 	path = lib/towr
-	url = https://github.com/ethz-adrl/towr.git
+	url = https://github.com/Mavagnale/towr.git
