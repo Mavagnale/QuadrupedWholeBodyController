@@ -5,6 +5,15 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   roslib
   std_msgs
+  message_generation
+)
+
+add_message_files( FILES
+  WbcReferenceMsg.msg
+)
+
+generate_messages( DEPENDENCIES
+  std_msgs
 )
 
 find_package(iDynTree REQUIRED)
@@ -12,7 +21,7 @@ find_package(iDynTree REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES anymal_wbc
-#  CATKIN_DEPENDS roscpp std_msgs
+  CATKIN_DEPENDS roscpp std_msgs message_runtime
 #  DEPENDS system_lib
 )
 

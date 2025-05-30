@@ -10,6 +10,7 @@
 #include <sensor_msgs/JointState.h>
 #include <boost/thread.hpp>
 #include <Eigen/Core>
+#include "anymal_wbc/WbcReferenceMsg.h"
 
 // iDynTree
 #include <iDynTree/FreeFloatingState.h>
@@ -38,7 +39,7 @@ class WholeBodyController
     
 		void floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg);
 		void jointStateCallback(sensor_msgs::JointState jointStateMsg);
-		void referenceCallback(std_msgs::Float64MultiArray refMsg);
+		void referenceCallback(anymal_wbc::WbcReferenceMsg refMsg);
 
         void updateState();
 

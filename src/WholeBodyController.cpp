@@ -147,38 +147,38 @@ void WholeBodyController::loadParameters()
         ROS_ERROR("Failed to get param 'initialReferencePose'");
 }
 
-void WholeBodyController::referenceCallback(std_msgs::Float64MultiArray refMsg)
+void WholeBodyController::referenceCallback(anymal_wbc::WbcReferenceMsg refMsg)
 {
     ROS_INFO("Reference acquired");
 
     for (int i = 0 ; i < 6 ; i++)
     {
-        desiredPose_(i) = refMsg.data[i];
+        desiredPose_(i) = refMsg.desiredComPose.data[i];
     }
-    for (int i = 6 ; i < 12 ; i++)
+    for (int i = 0 ; i < 6 ; i++)
     {
-        desiredCoMVelocity_(i-6) = refMsg.data[i];
+        desiredCoMVelocity_(i) = refMsg.desiredComVelocity.data[i];
     }
-    for (int i = 12 ; i < 18 ; i++)
+    for (int i = 0 ; i < 6 ; i++)
     {
-        desiredCoMAcceleration_(i-12) = refMsg.data[i];
+        desiredCoMAcceleration_(i) = refMsg.desiredComAcceleration.data[i];
     }
-    for (int i = 18 ; i < 30 ; i++)
+    for (int i = 0 ; i < 3*numberOfLegs ; i++)
     {
-        desiredSwingLegsPosition_(i-18) = refMsg.data[i];
+        desiredSwingLegsPosition_(i) = refMsg.desiredSwingLegsPosition.data[i];
     }
-    for (int i = 30 ; i < 42 ; i++)
+    for (int i = 0 ; i < 3*numberOfLegs ; i++)
     {
-        desiredSwingLegsVelocity_(i-30) = refMsg.data[i];
+        desiredSwingLegsVelocity_(i) = refMsg.desiredSwingLegsVelocity.data[i];
     }
-    for (int i = 42 ; i < 54 ; i++)
+    for (int i = 0 ; i < 3*numberOfLegs ; i++)
     {
-        desiredSwingLegsAcceleration_(i-42) = refMsg.data[i];
+        desiredSwingLegsAcceleration_(i) = refMsg.desiredSwingLegsAcceleration.data[i];
     }
-    footContacts_[0] = refMsg.data[54];
-    footContacts_[1] = refMsg.data[55];
-    footContacts_[2] = refMsg.data[56];
-    footContacts_[3] = refMsg.data[57];
+    for (int i = 0 ; i < numberOfLegs ; i++)
+    {
+        footContacts_[i] = refMsg.footContacts[i];
+    }
 }
 
 void WholeBodyController::floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg)
