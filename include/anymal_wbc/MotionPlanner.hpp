@@ -4,9 +4,10 @@
 // ROS
 #include <ros/ros.h>
 #include <ros/package.h>
-#include <std_msgs/Float64MultiArray.h>
 #include <gazebo_msgs/ModelState.h>
 #include <boost/thread.hpp>
+
+#include "anymal_wbc/WbcReferenceMsg.h"
 
 #include <towr/terrain/examples/height_map_examples.h>
 #include <towr/nlp_formulation.h>
@@ -16,7 +17,7 @@
 #include "towr/models/endeffector_mappings.h"
 #include "towr/initialization/gait_generator.h"
 
-const double loopRate = 500;
+const double loopRate = 400;
 
 class MotionPlanner
 {

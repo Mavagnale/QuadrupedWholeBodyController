@@ -18,6 +18,11 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>message_runtime</exec_depend>
 
+  <depend>qpOASES</depend>
+  <depend>idyntree</depend>
+  <depend>ifopt</depend>
+  <depend>towr</depend>
+
   <export>
   </export>
 </package>

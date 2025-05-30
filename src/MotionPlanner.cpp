@@ -2,17 +2,17 @@
 
 MotionPlanner::MotionPlanner()
 {
-    refPub_ = nh_.advertise<std_msgs::Float64MultiArray>("/anymal/reference", 0);
+    refPub_ = nh_.advertise<anymal_wbc::WbcReferenceMsg>("/anymal/reference", 0);
     gazeboPub_ = nh_.advertise<gazebo_msgs::ModelState>("/gazebo/set_model_state", 0);
 
     // terrain
     formulation_.terrain_ = std::make_shared<towr::FlatGround>(0.0);
 
     // Kinematic limits and dynamic parameters of the robot
-    formulation_.model_ = towr::RobotModel(towr::RobotModel::Anymal); // to add AnymalD
+    formulation_.model_ = towr::RobotModel(towr::RobotModel::AnymalD);
 
     // set the initial position of the robot
-	formulation_.initial_base_.lin.at(towr::kPos) << 0.00, 0.00, 0.48;
+	formulation_.initial_base_.lin.at(towr::kPos) << 0.00, 0.00, 0.50;
     formulation_.initial_base_.ang.at(towr::kPos) << 0.00, 0.00, 0.00;
     formulation_.initial_base_.lin.at(towr::kVel) << 0.00, 0.00, 0.00;
     formulation_.initial_base_.ang.at(towr::kVel) << 0.00, 0.00, 0.00;
@@ -20,14 +20,16 @@ MotionPlanner::MotionPlanner()
 	auto nominal_stance_B = formulation_.model_.kinematic_model_->GetNominalStanceInBase();
     formulation_.initial_ee_W_ = nominal_stance_B;
 
-    formulation_.initial_ee_W_.at(towr::LF) <<  0.503,  0.335, 0.000 ;
-    formulation_.initial_ee_W_.at(towr::RF) <<  0.503, -0.335, 0.000 ;
-    formulation_.initial_ee_W_.at(towr::LH) << -0.503,  0.335, 0.000 ;
-    formulation_.initial_ee_W_.at(towr::RH) << -0.503, -0.335, 0.000 ;
+    formulation_.initial_ee_W_.at(towr::LH) << -0.507838,  0.318212, 0.000 ;
+    formulation_.initial_ee_W_.at(towr::LF) <<  0.507838,  0.318212, 0.000 ;
+    formulation_.initial_ee_W_.at(towr::RF) <<  0.507838, -0.318212, 0.000 ;
+    formulation_.initial_ee_W_.at(towr::RH) << -0.507838, -0.318212, 0.000 ;
 
     // define the desired goal state of the robot
-    formulation_.final_base_.lin.at(towr::kPos) << 1.00, 0.00, 0.48;
+    formulation_.final_base_.lin.at(towr::kPos) << 1.00, 0.00, 0.50;
     formulation_.final_base_.ang.at(towr::kPos) << 0.00, 0.00, 0.00;
+    formulation_.final_base_.lin.at(towr::kVel) << 0.00, 0.00, 0.00;
+    formulation_.final_base_.ang.at(towr::kVel) << 0.00, 0.00, 0.00;
 
 
     auto gait_gen_ = towr::GaitGenerator::MakeGaitGenerator(4);
@@ -37,11 +39,11 @@ MotionPlanner::MotionPlanner()
 
     formulation_.params_.ee_phase_durations_.clear();
 
-    for (int ee = 0; ee < 4; ee++) {
+    for (int ee = 0; ee < 4; ee++) 
+    {
         formulation_.params_.ee_phase_durations_.push_back(gait_gen_->GetPhaseDurations(3, ee));
         formulation_.params_.ee_in_contact_at_start_.push_back(gait_gen_->IsInContactAtStart(ee));
     }
-
 }
 
 void MotionPlanner::plannerLoop()
@@ -96,51 +98,47 @@ void MotionPlanner::plannerLoop()
         publishGraphicReference();
 
         ROS_INFO_STREAM("Time elapsed: " << t);
-        t = t  + 1/loopRate;
+        t = t + 1/loopRate;
         
         rosRate.sleep();
     }
 
-    while (ros::ok())
-    {
-        rosRate.sleep();
-    }
-    
+    ros::shutdown();
 }
 
 void MotionPlanner::publishReference()
 {
-        std_msgs::Float64MultiArray msg;
-        for (int i = 0; i < 6; i++) 
-        {
-            msg.data.push_back(refPoseCoM_(i));
-        }
-        for (int i = 0; i < 6; i++) 
-        {
-            msg.data.push_back(refVelocityCoM_(i));
-        }
-        for (int i = 0; i < 6; i++) 
-        {
-            msg.data.push_back(refAccelerationCoM_(i));
-        }
-        for (int i = 0; i < 12; i++)
-        {
-            msg.data.push_back(refPositionSwingLegs_(i));
-        }
-        for (int i = 0; i < 12; i++)
-        {
-            msg.data.push_back(refVelocitySwingLegs_(i));
-        }
-        for (int i = 0; i < 12; i++)
-        {
-            msg.data.push_back(refAccelerationSwingLegs_(i));
-        }
-        msg.data.push_back(refContactLH_);
-        msg.data.push_back(refContactLF_);
-        msg.data.push_back(refContactRF_);
-        msg.data.push_back(refContactRH_);
+    anymal_wbc::WbcReferenceMsg msg;
+    for (int i = 0; i < 6; i++) 
+    {
+        msg.desiredComPose.data.push_back(refPoseCoM_(i));
+    }
+    for (int i = 0; i < 6; i++) 
+    {
+        msg.desiredComVelocity.data.push_back(refVelocityCoM_(i));
+    }
+    for (int i = 0; i < 6; i++) 
+    {
+        msg.desiredComAcceleration.data.push_back(refAccelerationCoM_(i));
+    }
+    for (int i = 0; i < 12; i++)
+    {
+        msg.desiredSwingLegsPosition.data.push_back(refPositionSwingLegs_(i));
+    }
+    for (int i = 0; i < 12; i++)
+    {
+        msg.desiredSwingLegsVelocity.data.push_back(refVelocitySwingLegs_(i));
+    }
+    for (int i = 0; i < 12; i++)
+    {
+        msg.desiredSwingLegsAcceleration.data.push_back(refAccelerationSwingLegs_(i));
+    }
+    msg.footContacts[0] = refContactLH_;
+    msg.footContacts[1] = refContactLF_;
+    msg.footContacts[2] = refContactRF_;
+    msg.footContacts[3] = refContactRH_;
 
-        refPub_.publish(msg);
+    refPub_.publish(msg);
 }
 
 void MotionPlanner::publishGraphicReference()
