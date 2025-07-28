@@ -6,6 +6,7 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   std_msgs
   message_generation
+  tf
 )
 
 add_message_files( FILES

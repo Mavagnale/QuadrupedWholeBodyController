@@ -21,6 +21,9 @@
 // qpOASES
 #include <qpOASES.hpp>
 
+// tf
+#include <tf/transform_broadcaster.h>
+
 const std::string modelName = "anymalModel";
 const int numberOfJoints = 12;
 const int numberOfLegs = 4;
@@ -65,6 +68,7 @@ class WholeBodyController
         void resetRobotSimState();
         void controlLoop();
 
+        void publishTransform();
     private:
         ros::NodeHandle nh_;
         
@@ -153,6 +157,10 @@ class WholeBodyController
         // quadratic problem
         qpOASES::SQProblem quadraticProblem_;
         Eigen::Vector<double,qpNumberOfVariables> qpSolution_;
+
+        // tf
+        tf::TransformBroadcaster broadcaster_;
+        tf::Transform transform_;
 };
 
 #endif // WHOLE_BODY_CONTROLLER_HPP

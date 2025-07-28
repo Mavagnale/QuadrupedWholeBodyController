@@ -602,6 +602,17 @@ void WholeBodyController::resetRobotSimState()
     }
 }
 
+void WholeBodyController::publishTransform()
+{
+    transform_.setOrigin(tf::Vector3(centerOfMassPosition_(0), centerOfMassPosition_(1), centerOfMassPosition_(2)));  // x, y, z
+    Eigen::Matrix3d currentOrientation = T_world_base_.block<3,3>(0,0);
+    Eigen::Vector<double,3> currentAttitude = eulAnglesRPY(currentOrientation);            
+    tf::Quaternion q;
+    q.setRPY(currentAttitude(0), currentAttitude(1), currentAttitude(2));  // roll, pitch, yaw
+    transform_.setRotation(q);
+    broadcaster_.sendTransform(tf::StampedTransform(transform_, ros::Time::now(), "map", "base"));
+}
+
 void WholeBodyController::controlLoop()
 {
     ros::Rate rosRate(params.loopRate);
@@ -627,7 +638,7 @@ void WholeBodyController::controlLoop()
         comMsg.position.y = centerOfMassPosition_(1);
         comMsg.position.z = centerOfMassPosition_(2);
         centerOfMassPub_.publish(comMsg);
-
+        publishTransform();
         rosRate.sleep();
         time = time + deltaTime;
     }
