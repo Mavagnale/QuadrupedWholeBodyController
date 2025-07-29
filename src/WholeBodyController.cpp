@@ -604,7 +604,7 @@ void WholeBodyController::resetRobotSimState()
 
 void WholeBodyController::publishTransform()
 {
-    transform_.setOrigin(tf::Vector3(centerOfMassPosition_(0), centerOfMassPosition_(1), centerOfMassPosition_(2)));  // x, y, z
+    transform_.setOrigin(tf::Vector3(T_world_base_(0,3), T_world_base_(1,3), T_world_base_(2,3)));
     Eigen::Matrix3d currentOrientation = T_world_base_.block<3,3>(0,0);
     Eigen::Vector<double,3> currentAttitude = eulAnglesRPY(currentOrientation);            
     tf::Quaternion q;
