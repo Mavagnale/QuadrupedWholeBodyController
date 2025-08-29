@@ -14,4 +14,8 @@
         args="-d $(find anymal_wbc)/config/rviz/controller.rviz"
         output="screen"/>
 
+    <node name="motion_planner_node" pkg="anymal_wbc" type="motion_planner_node" output="screen"/>
+    <node name="teleop_gui_node" pkg="anymal_wbc" type="teleop_gui_node" output="screen"/>
+    <node name="marker_publisher" pkg="anymal_wbc" type="marker_publisher" output="screen"/>
+
 </launch>
