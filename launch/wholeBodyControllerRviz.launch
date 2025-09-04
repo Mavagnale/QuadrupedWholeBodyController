@@ -1,21 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
 
-    <include file="$(find anymal_wbc)/launch/spawn.launch">
-        <arg name="gui" default="false" />
-        <arg name="pause" default="false" />
-    </include>
+  <!-- Arguments -->
+  <arg name="record" default="true" />
+  <arg name="record_path" default="$(find anymal_wbc)/rosbags" />
+  <arg name="visualize_markers" default="true" />
 
-    <rosparam command="load" file="$(find anymal_wbc)/config/params.yaml" ns="anymal_wbc"/>
-    <node name="whole_body_controller_node" pkg="anymal_wbc" type="whole_body_controller_node" output="screen"/>
-    
+  <!-- Spawn -->
+  <include file="$(find anymal_wbc)/launch/spawn.launch">
+    <arg name="gui" default="false" />
+    <arg name="pause" default="false" />
+  </include>
+
+  <!-- Parameters -->
+  <rosparam command="load" file="$(find anymal_wbc)/config/params.yaml" ns="anymal_wbc"/>
+
+  <!-- Controller -->
+  <node name="whole_body_controller_node" pkg="anymal_wbc" type="whole_body_controller_node" output="screen"/>
+
   <!-- RViz -->
   <node name="rviz" pkg="rviz" type="rviz"
         args="-d $(find anymal_wbc)/config/rviz/controller.rviz"
         output="screen"/>
 
-    <node name="motion_planner_node" pkg="anymal_wbc" type="motion_planner_node" output="screen"/>
-    <node name="teleop_gui_node" pkg="anymal_wbc" type="teleop_gui_node" output="screen"/>
+  <!-- Other nodes -->
+  <node name="motion_planner_node" pkg="anymal_wbc" type="motion_planner_node" output="screen"/>
+  <node name="teleop_gui_node" pkg="anymal_wbc" type="teleop_gui_node" output="screen"/>
+
+
+    <!-- Conditional marker publisher -->
+  <group if="$(arg visualize_markers)">
     <node name="marker_publisher" pkg="anymal_wbc" type="marker_publisher" output="screen"/>
+  </group>
+
+  <!-- Conditional rosbag record -->
+  <group if="$(arg record)">
+    <node name="rosbag_record" pkg="rosbag" type="record"
+          args="-O $(arg record_path)/anymal_data.bag 
+          /anymal/joint_states
+          /gazebo/model_states
+          /anymal/joint_effort_group_controller/command
+          /anymal/desired_ground_reaction_forces"
+          output="screen"/>
+  </group>
 
 </launch>

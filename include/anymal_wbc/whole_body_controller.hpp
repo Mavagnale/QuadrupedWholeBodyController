@@ -72,6 +72,7 @@ class WholeBodyController
     private:
         ros::NodeHandle nh_;
         
+        ros::Publisher desiredGroundReactionForcesPub_;
         ros::Publisher jointTorquePub_;
         ros::Publisher centerOfMassPub_;
         ros::Publisher gazeboPub_;

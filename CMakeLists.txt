@@ -60,3 +60,8 @@ target_link_libraries(motion_planner_node motion_planner ${catkin_LIBRARIES})
 
 add_executable(marker_publisher src/marker_publisher.cpp)
 target_link_libraries(marker_publisher ${catkin_LIBRARIES})
+
+catkin_install_python(PROGRAMS
+  scripts/plot_bag.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)

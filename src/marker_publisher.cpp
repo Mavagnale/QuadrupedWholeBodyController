@@ -75,18 +75,11 @@ visualization_msgs::Marker draw_rectangle( double px, double py, double pz, doub
 }
 
 void input_callback(const anymal_wbc::WbcReferenceMsg& ref_msg) {
-    // com_marker_msg.pose.position.x = ref_msg.desiredComPose.data[0];
-    // com_marker_msg.pose.position.y = ref_msg.desiredComPose.data[1];
-    // com_marker_msg.pose.position.z = ref_msg.desiredComPose.data[2];
-
     com_marker_msg = draw_rectangle(ref_msg.desiredComPose.data[0], ref_msg.desiredComPose.data[1], ref_msg.desiredComPose.data[2], ref_msg.desiredComPose.data[5]);
-
     lh_marker_msg = draw_point(ref_msg.desiredSwingLegsPosition.data[0], ref_msg.desiredSwingLegsPosition.data[1], ref_msg.desiredSwingLegsPosition.data[2]);
     lf_marker_msg = draw_point(ref_msg.desiredSwingLegsPosition.data[3], ref_msg.desiredSwingLegsPosition.data[4], ref_msg.desiredSwingLegsPosition.data[5]);
     rf_marker_msg = draw_point(ref_msg.desiredSwingLegsPosition.data[6], ref_msg.desiredSwingLegsPosition.data[7], ref_msg.desiredSwingLegsPosition.data[8]);
     rh_marker_msg = draw_point(ref_msg.desiredSwingLegsPosition.data[9], ref_msg.desiredSwingLegsPosition.data[10], ref_msg.desiredSwingLegsPosition.data[11]);
-
-    ROS_INFO("Received com reference: [%f, %f, %f]", com_marker_msg.pose.position.x , com_marker_msg.pose.position.y , com_marker_msg.pose.position.z );
 }
 
 int main(int argc, char** argv) {
