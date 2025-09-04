@@ -34,24 +34,6 @@ $ make install
 sudo apt-get install ros-noetic-ros-control ros-noetic-ros-controllers
 ```
 
-### Install ifopt
-```
-cd lib/ifopt
-mkdir build && cd build
-cmake ..
-make
-make install
-```
-
-### Install towr
-```
-cd lib/towr/towr
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make
-make install
-```
-
 ### Compile package with catkin_make
 ```
 roscd
