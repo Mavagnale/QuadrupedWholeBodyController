@@ -1,0 +1,8 @@
+step_length : 0.1                   # Length of the step
+height_control_point : 0.1          # Height of the control point
+x_offset : 0.50                     # Forward offset of the foot placement
+y_offset : 0.33                     # Lateral offset of the foot placement
+step_duration : 0.2                 # Duration of each step phase
+body_height : 0.50                  # Height of the body from the ground
+body_final_velocity : 0.40          # Final forward velocity
+dt : 0.01                           # Time step for the planner

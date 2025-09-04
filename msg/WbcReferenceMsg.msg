@@ -1,0 +1,7 @@
+std_msgs/Float64MultiArray desiredComPose
+std_msgs/Float64MultiArray desiredComVelocity
+std_msgs/Float64MultiArray desiredComAcceleration
+std_msgs/Float64MultiArray desiredSwingLegsPosition
+std_msgs/Float64MultiArray desiredSwingLegsVelocity
+std_msgs/Float64MultiArray desiredSwingLegsAcceleration
+bool[4] footContacts

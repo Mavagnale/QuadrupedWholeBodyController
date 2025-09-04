@@ -1,4 +1,4 @@
-#include "anymal_wbc/WholeBodyController.hpp"
+#include "anymal_wbc/whole_body_controller.hpp"
 
 Eigen::Matrix3d skewOperator( Eigen::Vector3d v )
 {
@@ -40,6 +40,7 @@ WholeBodyController::WholeBodyController() : initStatus_(1) ,
     model_ = kinDynComp_.model();
 
     jointTorquePub_ = nh_.advertise<std_msgs::Float64MultiArray>("/anymal/joint_effort_group_controller/command", 10);
+    desiredGroundReactionForcesPub_ = nh_.advertise<std_msgs::Float64MultiArray>("/anymal/desired_ground_reaction_forces", 10);
     centerOfMassPub_ = nh_.advertise<geometry_msgs::Pose>("/anymal/com", 10);
     gazeboPub_ = nh_.advertise<gazebo_msgs::ModelState>("/gazebo/set_model_state", 0);
 
@@ -147,38 +148,36 @@ void WholeBodyController::loadParameters()
         ROS_ERROR("Failed to get param 'initialReferencePose'");
 }
 
-void WholeBodyController::referenceCallback(std_msgs::Float64MultiArray refMsg)
+void WholeBodyController::referenceCallback(anymal_wbc::WbcReferenceMsg refMsg)
 {
-    ROS_INFO("Reference acquired");
-
     for (int i = 0 ; i < 6 ; i++)
     {
-        desiredPose_(i) = refMsg.data[i];
+        desiredPose_(i) = refMsg.desiredComPose.data[i];
     }
-    for (int i = 6 ; i < 12 ; i++)
+    for (int i = 0 ; i < 6 ; i++)
     {
-        desiredCoMVelocity_(i-6) = refMsg.data[i];
+        desiredCoMVelocity_(i) = refMsg.desiredComVelocity.data[i];
     }
-    for (int i = 12 ; i < 18 ; i++)
+    for (int i = 0 ; i < 6 ; i++)
     {
-        desiredCoMAcceleration_(i-12) = refMsg.data[i];
+        desiredCoMAcceleration_(i) = refMsg.desiredComAcceleration.data[i];
     }
-    for (int i = 18 ; i < 30 ; i++)
+    for (int i = 0 ; i < 3*numberOfLegs ; i++)
     {
-        desiredSwingLegsPosition_(i-18) = refMsg.data[i];
+        desiredSwingLegsPosition_(i) = refMsg.desiredSwingLegsPosition.data[i];
     }
-    for (int i = 30 ; i < 42 ; i++)
+    for (int i = 0 ; i < 3*numberOfLegs ; i++)
     {
-        desiredSwingLegsVelocity_(i-30) = refMsg.data[i];
+        desiredSwingLegsVelocity_(i) = refMsg.desiredSwingLegsVelocity.data[i];
     }
-    for (int i = 42 ; i < 54 ; i++)
+    for (int i = 0 ; i < 3*numberOfLegs ; i++)
     {
-        desiredSwingLegsAcceleration_(i-42) = refMsg.data[i];
+        desiredSwingLegsAcceleration_(i) = refMsg.desiredSwingLegsAcceleration.data[i];
     }
-    footContacts_[0] = refMsg.data[54];
-    footContacts_[1] = refMsg.data[55];
-    footContacts_[2] = refMsg.data[56];
-    footContacts_[3] = refMsg.data[57];
+    for (int i = 0 ; i < numberOfLegs ; i++)
+    {
+        footContacts_[i] = refMsg.footContacts[i];
+    }
 }
 
 void WholeBodyController::floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg)
@@ -499,22 +498,23 @@ void WholeBodyController::solveQP()
 
     Eigen::Vector<double,6> currentCoMVelocity;
     currentCoMVelocity << iDynTree::toEigen(kinDynComp_.getCenterOfMassVelocity()) , baseVel_.block<3,1>(3,0);
+    Eigen::Vector<double,numberOfJoints> currentJointVelocities = jointVel_;    // avoid race condition with the jointStateCallback    
     Eigen::Vector<double,6> gravityWrench;
     gravityWrench << 0 , 0 , totalMass_ * gravityAcceleration , 0 , 0 , 0;
 
     qpMatrixbUB <<  - gravityWrench,
-                    - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ,
+                    - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*currentJointVelocities ,
                     Eigen::Vector<double,4*numberOfLegs>::Zero(),
                     params.maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
-                    computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_,
+                    computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*currentJointVelocities,
                     qpOASES::INFTY * Eigen::Vector<double,3*numberOfLegs>::Ones();
 
     qpMatrixbLB <<  - gravityWrench,
-                    - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_ ,
+                    - centroidStanceJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidStanceJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*currentJointVelocities ,
                     -qpOASES::INFTY * Eigen::Vector<double,4*numberOfLegs>::Ones(),
                     - params.maxTorque * Eigen::Vector<double,numberOfJoints>::Ones() - centroidGeneralizedBias_.block<numberOfJoints,1>(6,0),
                     -qpOASES::INFTY * Eigen::Vector<double,3*numberOfLegs>::Ones(),
-                    computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*jointVel_;
+                    computeCommandedAccelerationSwingLegs() - centroidSwingJacobianDot_.block<3*numberOfLegs,6>(0,0)*currentCoMVelocity - centroidSwingJacobianDot_.block<3*numberOfLegs,numberOfJoints>(0,6)*currentJointVelocities;
 
 	qpOASES::int_t nWSR = 100;
     qpOASES::Options myOptions;
@@ -557,6 +557,13 @@ void WholeBodyController::computeJointTorques()
     Eigen::Vector<double,numberOfJoints> desiredJointsAccelerations = qpSolution_.block<numberOfJoints,1>(6,0);
     Eigen::Vector<double,numberOfJoints> desiredGroundReactionForces = qpSolution_.block<3*numberOfLegs,1>(6+numberOfJoints,0);
 
+    std_msgs::Float64MultiArray desiredgrfMsg;
+    for (int i = 0 ; i < 3*numberOfLegs ; i++)
+    {
+        desiredgrfMsg.data.push_back(desiredGroundReactionForces(i));
+    } 
+    desiredGroundReactionForcesPub_.publish(desiredgrfMsg);
+
     Eigen::Vector<double,numberOfJoints> actuationTorque = 
                     centroidMassMatrixJoints_ * desiredJointsAccelerations +
                     centroidGeneralizedBias_.block<numberOfJoints,1>(6,0) 
@@ -577,8 +584,8 @@ void WholeBodyController::resetRobotSimState()
 
     double time = 0.0;
     const double deltaTime = 1.0 / params.loopRate;
-    double resetTime = 0.3;
-    double zOffset = 0.1;
+    double resetTime = 0.5;
+    double zOffset = 0.05;
 
 
     // needed to let the controllers load in gazebo
@@ -601,6 +608,17 @@ void WholeBodyController::resetRobotSimState()
     }
 }
 
+void WholeBodyController::publishTransform()
+{
+    transform_.setOrigin(tf::Vector3(T_world_base_(0,3), T_world_base_(1,3), T_world_base_(2,3)));
+    Eigen::Matrix3d currentOrientation = T_world_base_.block<3,3>(0,0);
+    Eigen::Vector<double,3> currentAttitude = eulAnglesRPY(currentOrientation);            
+    tf::Quaternion q;
+    q.setRPY(currentAttitude(0), currentAttitude(1), currentAttitude(2));  // roll, pitch, yaw
+    transform_.setRotation(q);
+    broadcaster_.sendTransform(tf::StampedTransform(transform_, ros::Time::now(), "map", "base"));
+}
+
 void WholeBodyController::controlLoop()
 {
     ros::Rate rosRate(params.loopRate);
@@ -609,6 +627,7 @@ void WholeBodyController::controlLoop()
     
     double time = 0.0;
     const double deltaTime = 1.0 / params.loopRate;
+    long iteration = 0;
 
     while (ros::ok())
     {
@@ -616,17 +635,18 @@ void WholeBodyController::controlLoop()
         solveQP();
         computeJointTorques();
 
-        ROS_INFO_STREAM("time: " << time << " s");
-        ROS_INFO_STREAM ("Desired com position: " << desiredPose_.head<3>().transpose() );
-        ROS_INFO_STREAM ("Actual com position: " << centerOfMassPosition_.transpose() );
-        ROS_INFO_STREAM ("---------------------------");
+        // ROS_INFO_STREAM ("Elapsed time: " << time << " s");
+        // ROS_INFO_STREAM ("Desired com position: " << desiredPose_.head<3>().transpose() );
+        // ROS_INFO_STREAM ("Actual com position: " << centerOfMassPosition_.transpose() );
+        // ROS_INFO_STREAM ("---------------------------");
 
         geometry_msgs::Pose comMsg;
         comMsg.position.x = centerOfMassPosition_(0);
         comMsg.position.y = centerOfMassPosition_(1);
         comMsg.position.z = centerOfMassPosition_(2);
         centerOfMassPub_.publish(comMsg);
-
+        if (iteration % 10 == 0)
+            publishTransform();
         rosRate.sleep();
         time = time + deltaTime;
     }

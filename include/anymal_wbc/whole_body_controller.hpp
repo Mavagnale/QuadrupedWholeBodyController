@@ -10,6 +10,7 @@
 #include <sensor_msgs/JointState.h>
 #include <boost/thread.hpp>
 #include <Eigen/Core>
+#include "anymal_wbc/WbcReferenceMsg.h"
 
 // iDynTree
 #include <iDynTree/FreeFloatingState.h>
@@ -19,6 +20,9 @@
 
 // qpOASES
 #include <qpOASES.hpp>
+
+// tf
+#include <tf/transform_broadcaster.h>
 
 const std::string modelName = "anymalModel";
 const int numberOfJoints = 12;
@@ -38,7 +42,7 @@ class WholeBodyController
     
 		void floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg);
 		void jointStateCallback(sensor_msgs::JointState jointStateMsg);
-		void referenceCallback(std_msgs::Float64MultiArray refMsg);
+		void referenceCallback(anymal_wbc::WbcReferenceMsg refMsg);
 
         void updateState();
 
@@ -64,9 +68,11 @@ class WholeBodyController
         void resetRobotSimState();
         void controlLoop();
 
+        void publishTransform();
     private:
         ros::NodeHandle nh_;
         
+        ros::Publisher desiredGroundReactionForcesPub_;
         ros::Publisher jointTorquePub_;
         ros::Publisher centerOfMassPub_;
         ros::Publisher gazeboPub_;
@@ -151,7 +157,11 @@ class WholeBodyController
 
         // quadratic problem
         qpOASES::SQProblem quadraticProblem_;
-        Eigen::Vector<double,6+numberOfJoints+3*numberOfLegs> qpSolution_;
+        Eigen::Vector<double,qpNumberOfVariables> qpSolution_;
+
+        // tf
+        tf::TransformBroadcaster broadcaster_;
+        tf::Transform transform_;
 };
 
 #endif // WHOLE_BODY_CONTROLLER_HPP
