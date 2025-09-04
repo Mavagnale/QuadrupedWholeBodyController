@@ -12,6 +12,7 @@ class MotionPlanner {
         void plannerLoop();
         void run();
         void input_callback(const geometry_msgs::Twist& msg);
+        void load_parameters();
 
     private:
         ros::NodeHandle nh_;

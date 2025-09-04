@@ -13,7 +13,8 @@
   </include>
 
   <!-- Parameters -->
-  <rosparam command="load" file="$(find anymal_wbc)/config/params.yaml" ns="anymal_wbc"/>
+  <rosparam command="load" file="$(find anymal_wbc)/config/params_controller.yaml" ns="anymal_wbc"/>
+  <rosparam command="load" file="$(find anymal_wbc)/config/params_planner.yaml" ns="anymal_wbc"/>
 
   <!-- Controller -->
   <node name="whole_body_controller_node" pkg="anymal_wbc" type="whole_body_controller_node" output="screen"/>

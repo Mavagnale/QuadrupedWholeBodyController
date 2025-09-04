@@ -57,6 +57,29 @@ QuinticPolynomial generateQuinticPolynomial(double total_period, double vi = 0.0
     return poly;
 }
 
+void MotionPlanner::load_parameters()
+{   
+    if (!nh_.getParam("/anymal_wbc/step_length", params.step_length))
+        ROS_ERROR("Failed to get param 'step_length'");
+    if (!nh_.getParam("/anymal_wbc/height_control_point", params.height_control_point))
+        ROS_ERROR("Failed to get param 'height_control_point'");
+    if (!nh_.getParam("/anymal_wbc/x_offset", params.x_offset))
+        ROS_ERROR("Failed to get param 'x_offset'");
+    if (!nh_.getParam("/anymal_wbc/y_offset", params.y_offset))
+        ROS_ERROR("Failed to get param 'y_offset'");
+    if (!nh_.getParam("/anymal_wbc/step_duration", params.step_duration))
+        ROS_ERROR("Failed to get param 'step_duration'");
+    if (!nh_.getParam("/anymal_wbc/body_height", params.body_height))
+        ROS_ERROR("Failed to get param 'body_height'");
+    if (!nh_.getParam("/anymal_wbc/body_initial_velocity", params.body_initial_velocity))
+        ROS_ERROR("Failed to get param 'body_initial_velocity'");
+    if (!nh_.getParam("/anymal_wbc/body_final_velocity", params.body_final_velocity))
+        ROS_ERROR("Failed to get param 'body_final_velocity'");
+    if (!nh_.getParam("/anymal_wbc/dt", params.dt))
+        ROS_ERROR("Failed to get param 'dt'");
+    params.cycle_duration = 4 * params.step_duration; // Update cycle duration based on step duration
+}    
+
 void MotionPlanner::input_callback(const geometry_msgs::Twist& msg) {
     velocity_command_(0) = msg.linear.x;
     velocity_command_(1) = msg.linear.y;
@@ -126,7 +149,7 @@ void MotionPlanner::plannerLoop() {
     QuinticPolynomial poly_foot = generateQuinticPolynomial(params.step_duration, 0.0, 0.0);
 
     // At the first cycle, velocity should start from 0
-    QuinticPolynomial poly_body_start = generateQuinticPolynomial(params.cycle_duration, params.body_initial_velocity, params.body_final_velocity);
+    QuinticPolynomial poly_body_start = generateQuinticPolynomial(params.cycle_duration, 0.0, params.body_final_velocity);
     // Then, initial and final velocity should be the same for each cycle
     QuinticPolynomial poly_body_continue = generateQuinticPolynomial(params.cycle_duration, params.body_final_velocity, params.body_final_velocity); 
 
