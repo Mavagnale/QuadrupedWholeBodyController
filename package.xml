@@ -20,9 +20,9 @@
 
   <depend>qpOASES</depend>
   <depend>idyntree</depend>
-  <depend>ifopt</depend>
-  <depend>towr</depend>
-
+  <depend>rosbag</depend>
+  <depend>rospy</depend>
+  
   <export>
   </export>
 </package>

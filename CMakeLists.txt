@@ -6,7 +6,15 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   std_msgs
   message_generation
+  tf
 )
+
+## Find Qt5 (Widgets is the module needed for GUI components)
+find_package(Qt5 REQUIRED COMPONENTS Widgets)
+
+## Qt's MOC (meta-object compiler) support
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 add_message_files( FILES
   WbcReferenceMsg.msg
@@ -28,20 +36,32 @@ catkin_package(
 include_directories(
   include
   lib/qpOASES/include
-  lib/towr/towr/include
   ${catkin_INCLUDE_DIRS}
+  ${Qt5Widgets_INCLUDE_DIRS}
 )
 
 add_subdirectory(lib/qpOASES)
 add_subdirectory(lib/idyntree)
-add_subdirectory(lib/ifopt)
-add_subdirectory(lib/towr/towr)
 
-add_library(WholeBodyController src/WholeBodyController.cpp)
+add_library(WholeBodyController src/whole_body_controller.cpp)
 target_link_libraries(WholeBodyController PRIVATE iDynTree::idyntree-high-level qpOASES ${catkin_LIBRARIES})
 
-add_executable(whole_body_controller_node src/WholeBodyControllerNode.cpp)
+add_executable(whole_body_controller_node src/whole_body_controller_node.cpp)
 target_link_libraries(whole_body_controller_node WholeBodyController ${catkin_LIBRARIES})
 
-add_executable(motion_planner_node src/MotionPlanner.cpp)
-target_link_libraries(motion_planner_node towr ifopt_ipopt ${catkin_LIBRARIES})
+add_executable(teleop_gui_node src/teleop_gui_node.cpp)
+target_link_libraries(teleop_gui_node ${catkin_LIBRARIES} Qt5::Widgets)
+
+add_library(motion_planner src/motion_planner.cpp)
+target_link_libraries(motion_planner ${catkin_LIBRARIES})
+
+add_executable(motion_planner_node src/motion_planner_node.cpp)
+target_link_libraries(motion_planner_node motion_planner ${catkin_LIBRARIES})
+
+add_executable(marker_publisher src/marker_publisher.cpp)
+target_link_libraries(marker_publisher ${catkin_LIBRARIES})
+
+catkin_install_python(PROGRAMS
+  scripts/plot_bag.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)

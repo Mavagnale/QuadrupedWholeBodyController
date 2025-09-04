@@ -1,4 +1,4 @@
-#include "anymal_wbc/WholeBodyController.hpp"
+#include "anymal_wbc/whole_body_controller.hpp"
 
 Eigen::Matrix3d skewOperator( Eigen::Vector3d v )
 {
@@ -40,6 +40,7 @@ WholeBodyController::WholeBodyController() : initStatus_(1) ,
     model_ = kinDynComp_.model();
 
     jointTorquePub_ = nh_.advertise<std_msgs::Float64MultiArray>("/anymal/joint_effort_group_controller/command", 10);
+    desiredGroundReactionForcesPub_ = nh_.advertise<std_msgs::Float64MultiArray>("/anymal/desired_ground_reaction_forces", 10);
     centerOfMassPub_ = nh_.advertise<geometry_msgs::Pose>("/anymal/com", 10);
     gazeboPub_ = nh_.advertise<gazebo_msgs::ModelState>("/gazebo/set_model_state", 0);
 
@@ -149,8 +150,6 @@ void WholeBodyController::loadParameters()
 
 void WholeBodyController::referenceCallback(anymal_wbc::WbcReferenceMsg refMsg)
 {
-    ROS_INFO("Reference acquired");
-
     for (int i = 0 ; i < 6 ; i++)
     {
         desiredPose_(i) = refMsg.desiredComPose.data[i];
@@ -558,6 +557,13 @@ void WholeBodyController::computeJointTorques()
     Eigen::Vector<double,numberOfJoints> desiredJointsAccelerations = qpSolution_.block<numberOfJoints,1>(6,0);
     Eigen::Vector<double,numberOfJoints> desiredGroundReactionForces = qpSolution_.block<3*numberOfLegs,1>(6+numberOfJoints,0);
 
+    std_msgs::Float64MultiArray desiredgrfMsg;
+    for (int i = 0 ; i < 3*numberOfLegs ; i++)
+    {
+        desiredgrfMsg.data.push_back(desiredGroundReactionForces(i));
+    } 
+    desiredGroundReactionForcesPub_.publish(desiredgrfMsg);
+
     Eigen::Vector<double,numberOfJoints> actuationTorque = 
                     centroidMassMatrixJoints_ * desiredJointsAccelerations +
                     centroidGeneralizedBias_.block<numberOfJoints,1>(6,0) 
@@ -602,6 +608,17 @@ void WholeBodyController::resetRobotSimState()
     }
 }
 
+void WholeBodyController::publishTransform()
+{
+    transform_.setOrigin(tf::Vector3(T_world_base_(0,3), T_world_base_(1,3), T_world_base_(2,3)));
+    Eigen::Matrix3d currentOrientation = T_world_base_.block<3,3>(0,0);
+    Eigen::Vector<double,3> currentAttitude = eulAnglesRPY(currentOrientation);            
+    tf::Quaternion q;
+    q.setRPY(currentAttitude(0), currentAttitude(1), currentAttitude(2));  // roll, pitch, yaw
+    transform_.setRotation(q);
+    broadcaster_.sendTransform(tf::StampedTransform(transform_, ros::Time::now(), "map", "base"));
+}
+
 void WholeBodyController::controlLoop()
 {
     ros::Rate rosRate(params.loopRate);
@@ -610,6 +627,7 @@ void WholeBodyController::controlLoop()
     
     double time = 0.0;
     const double deltaTime = 1.0 / params.loopRate;
+    long iteration = 0;
 
     while (ros::ok())
     {
@@ -617,17 +635,18 @@ void WholeBodyController::controlLoop()
         solveQP();
         computeJointTorques();
 
-        ROS_INFO_STREAM ("Elapsed time: " << time << " s");
-        ROS_INFO_STREAM ("Desired com position: " << desiredPose_.head<3>().transpose() );
-        ROS_INFO_STREAM ("Actual com position: " << centerOfMassPosition_.transpose() );
-        ROS_INFO_STREAM ("---------------------------");
+        // ROS_INFO_STREAM ("Elapsed time: " << time << " s");
+        // ROS_INFO_STREAM ("Desired com position: " << desiredPose_.head<3>().transpose() );
+        // ROS_INFO_STREAM ("Actual com position: " << centerOfMassPosition_.transpose() );
+        // ROS_INFO_STREAM ("---------------------------");
 
         geometry_msgs::Pose comMsg;
         comMsg.position.x = centerOfMassPosition_(0);
         comMsg.position.y = centerOfMassPosition_(1);
         comMsg.position.z = centerOfMassPosition_(2);
         centerOfMassPub_.publish(comMsg);
-
+        if (iteration % 10 == 0)
+            publishTransform();
         rosRate.sleep();
         time = time + deltaTime;
     }

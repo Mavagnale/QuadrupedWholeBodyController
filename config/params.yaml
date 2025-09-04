@@ -7,6 +7,6 @@ kpValueZ : 10000.0
 kdValue : 1800.0
 kiValue : 0.0
 kpSwingValue : 250.0
-kdSwingValue : 200.0
-slackWeight : 10000.0
+kdSwingValue : 20.0
+slackWeight : 1000.0
 initialReferencePose : [0.0, 0.0, 0.50, 0.0, 0.0, 0.0]
