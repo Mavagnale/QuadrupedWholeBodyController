@@ -43,10 +43,13 @@ WholeBodyController::WholeBodyController() : initStatus_(1) ,
     desiredGroundReactionForcesPub_ = nh_.advertise<std_msgs::Float64MultiArray>("/anymal/desired_ground_reaction_forces", 10);
     centerOfMassPub_ = nh_.advertise<geometry_msgs::Pose>("/anymal/com", 10);
     gazeboPub_ = nh_.advertise<gazebo_msgs::ModelState>("/gazebo/set_model_state", 0);
+    energyPub_ = nh_.advertise<std_msgs::Float64>("/anymal/tank_energy", 0);
+    alphaPub_ = nh_.advertise<std_msgs::Float64>("/anymal/alpha", 0);
 
     floatingBaseStateSub_ = nh_.subscribe("/gazebo/model_states" , 0 , &WholeBodyController::floatingBaseStateCallback , this);
     jointStateSub_ = nh_.subscribe("/anymal/joint_states" , 0 , &WholeBodyController::jointStateCallback , this);
     plannerReferenceSub_ = nh_.subscribe("/anymal/reference" , 0 , &WholeBodyController::referenceCallback , this);
+    baseForceSub_ = nh_.subscribe("/base_contact_sensor" , 0 , &WholeBodyController::baseForceCallback , this);
 
     // load parameters
     loadParameters();
@@ -118,6 +121,8 @@ void WholeBodyController::setInitialState()
     desiredSwingLegsPosition_.setZero();    
 
     integralError_.setZero();
+
+    tankEnergy_ = params.initialTankEnergy;
 }
 
 void WholeBodyController::loadParameters()
@@ -128,6 +133,8 @@ void WholeBodyController::loadParameters()
         ROS_ERROR("Failed to get param 'friction'");
     if (!nh_.getParam("/anymal_wbc/kpValue", params.kpValue))
         ROS_ERROR("Failed to get param 'kpValue'");
+    if (!nh_.getParam("/anymal_wbc/kpValueX", params.kpValueX))
+        ROS_ERROR("Failed to get param 'kpValueX'");
     if (!nh_.getParam("/anymal_wbc/kpValueZ", params.kpValueZ))
         ROS_ERROR("Failed to get param 'kpValueZ'");
     if (!nh_.getParam("/anymal_wbc/kdValue", params.kdValue))
@@ -146,6 +153,20 @@ void WholeBodyController::loadParameters()
         ROS_ERROR("Failed to get param 'slackWeight'");       
     if (!nh_.getParam("/anymal_wbc/initialReferencePose", params.refData)) 
         ROS_ERROR("Failed to get param 'initialReferencePose'");
+    if (!nh_.getParam("/anymal_wbc/forceReference", params.forceReference)) 
+        ROS_ERROR("Failed to get param 'forceReference'");
+    if (!nh_.getParam("/anymal_wbc/kpForce", params.kpForce)) 
+        ROS_ERROR("Failed to get param 'kpForce'");
+    if (!nh_.getParam("/anymal_wbc/kiForce", params.kiForce)) 
+        ROS_ERROR("Failed to get param 'kiForce'");
+    if (!nh_.getParam("/anymal_wbc/enableEnergyTank", params.enableEnergyTank)) 
+        ROS_ERROR("Failed to get param 'enableEnergyTank'");
+    if (params.enableEnergyTank)
+    {
+        if (!nh_.getParam("/anymal_wbc/initialTankEnergy", params.initialTankEnergy)) 
+            ROS_ERROR("Failed to get param 'initialTankEnergy'");
+        tankEnergy_ = params.initialTankEnergy;
+    }        
 }
 
 void WholeBodyController::referenceCallback(anymal_wbc::WbcReferenceMsg refMsg)
@@ -246,6 +267,18 @@ void WholeBodyController::jointStateCallback(sensor_msgs::JointState jointStateM
     {    
         jointPos_(i) = jointStateMsg.position[jointIndex_[i]];
         jointVel_(i) = jointStateMsg.velocity[jointIndex_[i]];
+    }
+}
+
+void WholeBodyController::baseForceCallback(gazebo_msgs::ContactsState contactMsg)
+{
+    if (contactMsg.states.size() > 0)
+    {
+        measuredBaseForce_ = contactMsg.states[0].wrenches[0].force.x;
+    }
+    else
+    {
+        measuredBaseForce_ = 0.0;
     }
 }
 
@@ -417,6 +450,7 @@ Eigen::Vector<double,6> WholeBodyController::computeDesiredWrench()
 {
     Eigen::Vector<double,6> desiredWrench;
     Eigen::Matrix<double,6,6> kpMatrix = params.kpValue * Eigen::Matrix<double,6,6>::Identity();
+    kpMatrix(0,0) = params.kpValueX;
     kpMatrix(2,2) = params.kpValueZ;
     Eigen::Matrix<double,6,6> kdMatrix = params.kdValue * Eigen::Matrix<double,6,6>::Identity();
     Eigen::Matrix<double,6,6> kiMatrix = params.kiValue * Eigen::Matrix<double,6,6>::Identity();
@@ -431,8 +465,55 @@ Eigen::Vector<double,6> WholeBodyController::computeDesiredWrench()
 
     integralError_ = integralError_ + (currentPose_ - desiredPose_)/params.loopRate; 
 
+    desiredWrench(0) += energyTankUpdate();
+
     return desiredWrench;
 }
+
+double WholeBodyController::energyTankUpdate()
+{
+    double forceWrench = - params.kpForce * (params.forceReference - measuredBaseForce_) - params.kiForce * integralBaseForceError_;
+    if (fabs(measuredBaseForce_) > 0.0)
+    {
+        integralBaseForceError_ = integralBaseForceError_ + (params.forceReference - measuredBaseForce_)/params.loopRate; 
+    }
+
+    if (params.enableEnergyTank)
+    {
+        double nominalPower = forceWrench * centerOfMassVelocity_(0);
+        double dissipatedPower = 0.5 * params.kdValue * centerOfMassVelocity_(0) * centerOfMassVelocity_(0);
+        double epsilon = 1e-3;
+        double alpha = std::min(1.0 , tankEnergy_ / (fabs(nominalPower) / params.loopRate + epsilon) );
+        double maxTankEnergy = 100.0;
+        forceWrench = forceWrench * alpha;
+
+        tankEnergy_ = tankEnergy_ + (- alpha * fabs(nominalPower) + dissipatedPower)/ params.loopRate;
+        if (tankEnergy_ < 0.0)
+        {
+            tankEnergy_ = 0.0;
+        }
+        else if (tankEnergy_ > maxTankEnergy)
+        {
+            tankEnergy_ = maxTankEnergy;
+        }
+        
+        std_msgs::Float64 energyMsg;
+        energyMsg.data = tankEnergy_;
+        energyPub_.publish(energyMsg);
+        std_msgs::Float64 alphaMsg;
+        alphaMsg.data = alpha;
+        alphaPub_.publish(alphaMsg);
+        
+        ROS_INFO_STREAM("Tank energy: " << tankEnergy_ << ", alpha: " << alpha << ", measuredBaseForce_: " << measuredBaseForce_ );
+    }
+    else
+    {
+        ROS_INFO_STREAM("measuredBaseForce_: " << measuredBaseForce_ );
+    }
+
+    return forceWrench;
+}
+
 
 Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeCommandedAccelerationSwingLegs()
 {
@@ -626,6 +707,7 @@ void WholeBodyController::controlLoop()
         // ROS_INFO_STREAM ("Desired com position: " << desiredPose_.head<3>().transpose() );
         // ROS_INFO_STREAM ("Actual com position: " << centerOfMassPosition_.transpose() );
         // ROS_INFO_STREAM ("---------------------------");
+        // ROS_INFO_STREAM("Measured base force: " << measuredBaseForce_);
 
         geometry_msgs::Pose comMsg;
         comMsg.position.x = centerOfMassPosition_(0);

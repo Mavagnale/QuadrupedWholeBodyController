@@ -5,8 +5,10 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 #include <std_msgs/Float64MultiArray.h>
+#include <std_msgs/Float64.h>
 #include <gazebo_msgs/ModelStates.h>
 #include <gazebo_msgs/ModelState.h>
+#include <gazebo_msgs/ContactsState.h>
 #include <sensor_msgs/JointState.h>
 #include <boost/thread.hpp>
 #include <Eigen/Core>
@@ -43,6 +45,7 @@ class WholeBodyController
 		void floatingBaseStateCallback(gazebo_msgs::ModelStates modelStateMsg);
 		void jointStateCallback(sensor_msgs::JointState jointStateMsg);
 		void referenceCallback(anymal_wbc::WbcReferenceMsg refMsg);
+		void baseForceCallback(gazebo_msgs::ContactsState contactMsg);
 
         void updateState();
 
@@ -52,7 +55,7 @@ class WholeBodyController
         void computeJointTorques();
         void computeDerivatives();
         void solveQP();
-
+        double energyTankUpdate();
 
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> computeTransformationMatrix();
         void computeJacobians(Eigen::Matrix<double,3*numberOfLegs,6+numberOfJoints> & stanceJacobian,
@@ -76,10 +79,13 @@ class WholeBodyController
         ros::Publisher jointTorquePub_;
         ros::Publisher centerOfMassPub_;
         ros::Publisher gazeboPub_;
+        ros::Publisher energyPub_;
+        ros::Publisher alphaPub_;
 
         ros::Subscriber floatingBaseStateSub_;
         ros::Subscriber jointStateSub_;
         ros::Subscriber plannerReferenceSub_;
+        ros::Subscriber baseForceSub_;
 
         bool initStatus_;
         bool firstJointStateCallback_;
@@ -93,6 +99,7 @@ class WholeBodyController
             double loopRate;
             double maxTorque;
             double kpValue;
+            double kpValueX;
             double kpValueZ;
             double kdValue;
             double kiValue;
@@ -100,6 +107,11 @@ class WholeBodyController
             double kdSwingValue;
             double slackWeight;
             std::vector<double> refData;
+            double forceReference;
+            double kpForce;
+            double kiForce;
+            bool enableEnergyTank;
+            double initialTankEnergy;
         } params;
 
         // iDynTree structs
@@ -161,6 +173,11 @@ class WholeBodyController
         // quadratic problem
         qpOASES::SQProblem quadraticProblem_;
         Eigen::Vector<double,qpNumberOfVariables> qpSolution_;
+
+        // force control and energy tank
+        double measuredBaseForce_ = 0.0;
+        double integralBaseForceError_ = 0.0;
+        double tankEnergy_;
 
         // tf
         tf::TransformBroadcaster broadcaster_;

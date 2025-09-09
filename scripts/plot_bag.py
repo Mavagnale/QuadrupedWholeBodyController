@@ -29,13 +29,21 @@ def plot_from_bag(bagfile, skip_seconds=3.0):
     model_times, model_x, model_y, model_z = [], [], [], []
     model_roll, model_pitch, model_yaw = [], [], []
 
+    base_contact_times, base_contact_fx = [], []
+
+    tank_times, tank_energy = [], []
+    alpha_times, alpha_value = [], []
+
     print("Reading bag...")
 
     for topic, msg, t in bag.read_messages(topics=[
         "/anymal/joint_states",
         "/gazebo/model_states",
         "/anymal/joint_effort_group_controller/command",
-        "/anymal/desired_ground_reaction_forces"
+        "/anymal/desired_ground_reaction_forces",
+        "/base_contact_sensor",
+        "/anymal/tank_energy",
+        "/anymal/alpha"
     ]):
         timestamp = t.to_sec()
         if timestamp < start_time:
@@ -82,44 +90,17 @@ def plot_from_bag(bagfile, skip_seconds=3.0):
             # - msg.wrenches: list of geometry_msgs/Wrench (each has .force.x/.y/.z)
             # - msg.data: flat list/array with chunked values (e.g. 12 values -> 4 legs * 3 components)
             leg_forces = []  # list of (fx,fy,fz) tuples in the same order as leg_order
-            if hasattr(msg, "wrenches") and len(msg.wrenches) > 0:
-                for w in msg.wrenches:
-                    f = w.force
-                    leg_forces.append((f.x, f.y, f.z))
-            elif hasattr(msg, "data") and len(msg.data) > 0:
-                data = list(msg.data)
-                nlegs = len(leg_order)
-                if len(data) % nlegs == 0:
-                    chunk = len(data) // nlegs
-                    for i in range(nlegs):
-                        chunk_vals = data[i*chunk:(i+1)*chunk]
-                        # prefer (fx,fy,fz) if chunk >=3, else take what is available and pad with zeros
-                        fx = chunk_vals[0] if len(chunk_vals) > 0 else 0.0
-                        fy = chunk_vals[1] if len(chunk_vals) > 1 else 0.0
-                        fz = chunk_vals[2] if len(chunk_vals) > 2 else 0.0
-                        leg_forces.append((fx, fy, fz))
-                else:
-                    # fallback: if data length equals 3 (single wrench) or 12 (4*3) or similar
-                    if len(data) == 3:
-                        leg_forces = [(data[0], data[1], data[2])] * len(leg_order)
-                    else:
-                        # try grouping into triples
-                        triples = [tuple(data[i:i+3]) for i in range(0, len(data), 3)]
-                        # pad/crop to nlegs
-                        for i in range(nlegs):
-                            if i < len(triples):
-                                tval = triples[i]
-                                if len(tval) == 3:
-                                    leg_forces.append(tval)
-                                else:
-                                    leg_forces.append((tval[0] if len(tval)>0 else 0.0,
-                                                       tval[1] if len(tval)>1 else 0.0,
-                                                       tval[2] if len(tval)>2 else 0.0))
-                            else:
-                                leg_forces.append((0.0, 0.0, 0.0))
-            else:
-                # unknown message format, skip
-                continue
+            data = list(msg.data)
+            nlegs = len(leg_order)
+            if len(data) % nlegs == 0:
+                chunk = len(data) // nlegs
+                for i in range(nlegs):
+                    chunk_vals = data[i*chunk:(i+1)*chunk]
+                    # prefer (fx,fy,fz) if chunk >=3, else take what is available and pad with zeros
+                    fx = chunk_vals[0] if len(chunk_vals) > 0 else 0.0
+                    fy = chunk_vals[1] if len(chunk_vals) > 1 else 0.0
+                    fz = chunk_vals[2] if len(chunk_vals) > 2 else 0.0
+                    leg_forces.append((fx, fy, fz))
 
             # Store vertical force (z) per leg (assume order matches leg_order)
             for i, ln in enumerate(leg_order):
@@ -130,6 +111,31 @@ def plot_from_bag(bagfile, skip_seconds=3.0):
                 times, vals = desired_grf[ln]
                 times.append(timestamp - start_time)
                 vals.append(fz)
+
+        elif topic == "/base_contact_sensor":
+            # Extract the same component accessed in C++ as:
+            # contactMsg.states[0].wrenches[0].force.x
+            fx = 0.0
+            if hasattr(msg, "states") and len(msg.states) > 0:
+                state0 = msg.states[0]
+                # ContactState typically has 'wrenches' (list of geometry_msgs/Wrench)
+                if hasattr(state0, "wrenches") and len(state0.wrenches) > 0:
+                    fx = getattr(state0.wrenches[0].force, "x", 0.0)
+                # fallback: some message variants store a single 'wrench'
+                elif hasattr(state0, "wrench") and hasattr(state0.wrench, "force"):
+                    fx = getattr(state0.wrench.force, "x", 0.0)
+            base_contact_times.append(timestamp - start_time)
+            base_contact_fx.append(abs(fx))
+
+        elif topic == "/anymal/tank_energy":
+            # std_msgs/Float64 -> msg.data
+            tank_times.append(timestamp - start_time)
+            tank_energy.append(msg.data if hasattr(msg, "data") else 0.0)
+
+        elif topic == "/anymal/alpha":
+            alpha_times.append(timestamp - start_time)
+            alpha_value.append(msg.data if hasattr(msg, "data") else 0.0)
+
 
     bag.close()
 
@@ -202,6 +208,50 @@ def plot_from_bag(bagfile, skip_seconds=3.0):
             axes4[i].grid(True)
             axes4[i].legend(fontsize="small")
         axes4[-1].set_xlabel("Time [s] (relative)")
+
+    # --- Plot 5: Base contact sensor fx (states[0].wrenches[0].force.x) ---
+    if len(base_contact_times) > 0:
+        fig5, ax5 = plt.subplots(1, 1, figsize=(10, 3.5))
+        fig5.suptitle("Base Contact Sensor: |fx|")
+        ax5.plot(base_contact_times, base_contact_fx, label="base_contact_fx")
+        ax5.set_ylabel("Force X [N]")
+        ax5.set_xlabel("Time [s] (relative)")
+        ax5.grid(True)
+        ax5.legend(fontsize="small")
+
+    # --- Plot 6: Tank energy and alpha (std_msgs/Float64) ---
+    if len(tank_times) > 0 or len(alpha_times) > 0:
+        fig6, axes6 = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+        fig6.suptitle("Tank Energy and Alpha")
+        if len(tank_times) > 0:
+            axes6[0].plot(tank_times, tank_energy, label="tank_energy", color="tab:blue")
+        axes6[0].set_ylabel("Energy")
+        axes6[0].grid(True)
+        axes6[0].legend(fontsize="small")
+
+        if len(alpha_times) > 0:
+            axes6[1].plot(alpha_times, alpha_value, label="alpha", color="tab:orange")
+        axes6[1].set_ylabel("Alpha")
+        axes6[1].set_xlabel("Time [s] (relative)")
+        axes6[1].grid(True)
+        axes6[1].legend(fontsize="small")
+
+    # Save all figures as PDFs
+    output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "rosbags", "plots"))
+    os.makedirs(output_dir, exist_ok=True)
+    try:
+        fig1.savefig(os.path.join(output_dir, "joint_positions_by_leg.pdf"), bbox_inches="tight")
+        fig2.savefig(os.path.join(output_dir, "base_state_over_time.pdf"), bbox_inches="tight")
+        fig3.savefig(os.path.join(output_dir, "joint_torques_by_leg.pdf"), bbox_inches="tight")
+        if "fig4" in locals():
+            fig4.savefig(os.path.join(output_dir, "desired_grf_by_leg.pdf"), bbox_inches="tight")
+        if "fig5" in locals():
+            fig5.savefig(os.path.join(output_dir, "base_contact_fx.pdf"), bbox_inches="tight")
+        if "fig6" in locals():
+            fig6.savefig(os.path.join(output_dir, "tank_energy_and_alpha.pdf"), bbox_inches="tight")
+        print(f"Saved plots to: {output_dir}")
+    except Exception as e:
+        print(f"Error saving plots: {e}")
 
     plt.show()
 

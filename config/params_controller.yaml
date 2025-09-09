@@ -2,11 +2,17 @@ modelName : "anymalModel"
 friction : 1.0
 loopRate : 400.0
 maxTorque : 80.0
-kpValue : 6000.0
-kpValueZ : 10000.0
+kpValue : 6000.0 # y, roll, pitch, yaw
+kpValueX : 1000.0 # x
+kpValueZ : 10000.0 # z
 kdValue : 1800.0
 kiValue : 0.0
 kpSwingValue : 250.0
 kdSwingValue : 20.0
 slackWeight : 1000.0
 initialReferencePose : [0.0, 0.0, 0.50, 0.0, 0.0, 0.0]
+forceReference : -100.0
+kpForce : 1.0
+kiForce : 1.0
+enableEnergyTank : false
+initialTankEnergy : 10.0

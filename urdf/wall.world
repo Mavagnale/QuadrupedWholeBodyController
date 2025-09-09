@@ -1,0 +1,79 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="wall_world">
+
+    <!-- Include the ground plane -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- Include the sun for lighting -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- Single wall-like block -->
+    <model name="wall_block">
+      <static>true</static>
+      <pose>0.53 0 0.5 0 0 0</pose>
+      <link name="wall">
+        <inertial>
+          <mass>5.0</mass>
+          <inertia>
+            <!-- rough, small inertia values adequate for a static object -->
+            <ixx>0.1</ixx>
+            <iyy>0.1</iyy>
+            <izz>0.1</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.12 0.3 1.0</size>
+            </box>
+          </geometry>
+
+          <surface>
+            <contact>
+              <ode>
+                <kp>1e6</kp>
+                <kd>1e4</kd>
+                <max_vel>0.1</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+            <bounce>
+              <restitution_coefficient>0.9</restitution_coefficient> 
+              <threshold>100</threshold>
+            </bounce>
+          </surface>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.12 0.3 1.0</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.6 0.6 0.6 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <scene>
+        <shadows>0</shadows>
+    </scene>
+
+    <physics type='ode'>
+      <max_step_size>0.001</max_step_size> <!-- Smaller = more accurate, but slower -->
+      <real_time_update_rate>1000</real_time_update_rate> <!-- Targeted simulation updates per second -->
+    </physics>
+  </world>
+</sdf>
