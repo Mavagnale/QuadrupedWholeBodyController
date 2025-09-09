@@ -117,6 +117,9 @@ class WholeBodyController
         Eigen::Vector<double,numberOfJoints> jointVel_;
         Eigen::Vector3d gravity_;
 
+        Eigen::Vector<double,6> currentPose_;
+        Eigen::Vector<double,6> centerOfMassVelocity_;
+
         // references
         Eigen::Vector<double,6> desiredPose_;
         Eigen::Vector<double,6> desiredCoMVelocity_;
