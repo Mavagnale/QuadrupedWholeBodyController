@@ -14,10 +14,41 @@ Eigen::Vector3d bezier_4_points(double s, const Eigen::Vector3d& p0, const Eigen
     return p;
 }
 
+// First derivative of cubic Bézier w.r.t. s
+Eigen::Vector3d bezier_4_points_first_derivative(double s, const Eigen::Vector3d& p0, const Eigen::Vector3d& p1,
+                                                 const Eigen::Vector3d& p2, const Eigen::Vector3d& p3) {
+    // 3 * [ (1-s)^2 (p1-p0) + 2(1-s)s (p2-p1) + s^2 (p3-p2) ]
+    double one_minus_s = 1.0 - s;
+    Eigen::Vector3d term1 = one_minus_s * one_minus_s * (p1 - p0);
+    Eigen::Vector3d term2 = 2.0 * one_minus_s * s * (p2 - p1);
+    Eigen::Vector3d term3 = s * s * (p3 - p2);
+    return 3.0 * (term1 + term2 + term3);
+}
+
+// Second derivative of cubic Bézier w.r.t. s
+Eigen::Vector3d bezier_4_points_second_derivative(double s, const Eigen::Vector3d& p0, const Eigen::Vector3d& p1,
+                                                  const Eigen::Vector3d& p2, const Eigen::Vector3d& p3) {
+    // 6 * [ (1-s) (p2 - 2p1 + p0) + s (p3 - 2p2 + p1) ]
+    double one_minus_s = 1.0 - s;
+    Eigen::Vector3d term1 = one_minus_s * (p2 - 2.0 * p1 + p0);
+    Eigen::Vector3d term2 = s * (p3 - 2.0 * p2 + p1);
+    return 6.0 * (term1 + term2);
+}
+
 // Generate a cubic Bézier spline assuming that the control points are at fixed height above initial and final point
 Eigen::Vector3d bezier(double s, const Eigen::Vector3d& pi, const Eigen::Vector3d& pf, double height_control_point) {
     Eigen::Vector3d vertical(0.0, 0.0, height_control_point);
     return bezier_4_points(s , pi, pi+vertical, pf+vertical, pf);
+}
+
+Eigen::Vector3d bezier_first_derivative(double s, const Eigen::Vector3d& pi, const Eigen::Vector3d& pf, double height_control_point) {
+    Eigen::Vector3d vertical(0.0, 0.0, height_control_point);
+    return bezier_4_points_first_derivative(s, pi, pi+vertical, pf+vertical, pf);
+}
+
+Eigen::Vector3d bezier_second_derivative(double s, const Eigen::Vector3d& pi, const Eigen::Vector3d& pf, double height_control_point) {
+    Eigen::Vector3d vertical(0.0, 0.0, height_control_point);
+    return bezier_4_points_second_derivative(s, pi, pi+vertical, pf+vertical, pf);
 }
 
 // Return a point of the segment pi to pf with normalized curvilinear abscissa s
@@ -30,6 +61,14 @@ struct QuinticPolynomial {
 
     double evaluate(double t) const {
         return a0 + a1 * t + a2 * t * t + a3 * t * t * t + a4 * t * t * t * t + a5 * t * t * t * t * t;
+    }
+
+    double evaluateFirstDerivative(double t) const {
+        return a1 + 2.0 * a2 * t + 3.0 * a3 * t * t + 4.0 * a4 * t * t * t + 5.0 * a5 * t * t * t * t;
+    }
+
+    double evaluateSecondDerivative(double t) const {
+        return 2.0 * a2 + 6.0 * a3 * t + 12.0 * a4 * t * t + 20.0 * a5 * t * t * t;
     }
 };
 
@@ -148,7 +187,7 @@ void MotionPlanner::plannerLoop() {
     double current_cycle_time = 0.0; // Time elapsed since start of cycle
 
 
-    QuinticPolynomial poly_foot = generateQuinticPolynomial(params.step_duration, 0.0, 0.0);
+    QuinticPolynomial poly_foot = generateQuinticPolynomial(params.step_duration, 0.0, 0.0); // Zero inizial and final velocity for the foot trajectory
 
     // At the first cycle, velocity should start from 0
     QuinticPolynomial poly_body_start = generateQuinticPolynomial(params.cycle_duration, 0.0, params.body_final_velocity);
@@ -161,12 +200,12 @@ void MotionPlanner::plannerLoop() {
 
         if (velocity_command_ != Eigen::Vector3d::Zero() || yaw_rate_command_!=0) {  // Go into a 4 step phases loop if there is a velocity reference
 
-            Eigen::Matrix3d rot_matrix;
+            Eigen::Matrix3d rot_matrix; // Rotation matrix of the current yaw reference
             rot_matrix << cos(yaw_) , -sin(yaw_) , 0 , sin(yaw_) , cos(yaw_) , 0 , 0 , 0 , 1;
             Eigen::Vector3d velocity_command_rotated = rot_matrix*velocity_command_;
 
             double delta_yaw = yaw_rate_command_ * params.cycle_duration;
-            Eigen::Matrix3d rot_matrix_delta;
+            Eigen::Matrix3d rot_matrix_delta; // Rotation matrix of the yaw variation during the cycle
             rot_matrix_delta << cos(delta_yaw) , -sin(delta_yaw) , 0 , sin(delta_yaw) , cos(delta_yaw) , 0 , 0 , 0 , 1;
 
             Eigen::Vector3d LH_vec(pi_foot_LH_(0)-pi_body_(0), pi_foot_LH_(1)-pi_body_(1), 0.0);
@@ -187,16 +226,36 @@ void MotionPlanner::plannerLoop() {
             while (step_phase < 4) {    // Loop through the 4 steps
                 if ( current_step_time < params.step_duration ) { // Still in the same step phase
                     double s_foot = poly_foot.evaluate(current_step_time);
+                    double s_foot_dot = poly_foot.evaluateFirstDerivative(current_step_time);
+                    double s_foot_ddot = poly_foot.evaluateSecondDerivative(current_step_time);
                     Eigen::Vector3d point_bezier_LH = bezier(s_foot, pi_foot_LH_, pf_foot_LH_, params.height_control_point);
                     Eigen::Vector3d point_bezier_RH = bezier(s_foot, pi_foot_RH_, pf_foot_RH_, params.height_control_point);
                     Eigen::Vector3d point_bezier_LF = bezier(s_foot, pi_foot_LF_, pf_foot_LF_, params.height_control_point);
                     Eigen::Vector3d point_bezier_RF = bezier(s_foot, pi_foot_RF_, pf_foot_RF_, params.height_control_point);
+                    Eigen::Vector3d point_bezier_LH_dot = bezier_first_derivative(s_foot, pi_foot_LH_, pf_foot_LH_, params.height_control_point) * s_foot_dot;
+                    Eigen::Vector3d point_bezier_RH_dot = bezier_first_derivative(s_foot, pi_foot_RH_, pf_foot_RH_, params.height_control_point) * s_foot_dot;
+                    Eigen::Vector3d point_bezier_LF_dot = bezier_first_derivative(s_foot, pi_foot_LF_, pf_foot_LF_, params.height_control_point) * s_foot_dot;
+                    Eigen::Vector3d point_bezier_RF_dot = bezier_first_derivative(s_foot, pi_foot_RF_, pf_foot_RF_, params.height_control_point) * s_foot_dot;
+                    Eigen::Vector3d point_bezier_LH_ddot = bezier_second_derivative(s_foot, pi_foot_LH_, pf_foot_LH_, params.height_control_point) * s_foot_dot * s_foot_dot
+                                                          + bezier_first_derivative(s_foot, pi_foot_LH_, pf_foot_LH_, params.height_control_point) * s_foot_ddot;
+                    Eigen::Vector3d point_bezier_RH_ddot = bezier_second_derivative(s_foot, pi_foot_RH_, pf_foot_RH_, params.height_control_point) * s_foot_dot * s_foot_dot
+                                                          + bezier_first_derivative(s_foot, pi_foot_RH_, pf_foot_RH_, params.height_control_point) * s_foot_ddot;
+                    Eigen::Vector3d point_bezier_LF_ddot = bezier_second_derivative(s_foot, pi_foot_LF_, pf_foot_LF_, params.height_control_point) * s_foot_dot * s_foot_dot
+                                                          + bezier_first_derivative(s_foot, pi_foot_LF_, pf_foot_LF_, params.height_control_point) * s_foot_ddot;
+                    Eigen::Vector3d point_bezier_RF_ddot = bezier_second_derivative(s_foot, pi_foot_RF_, pf_foot_RF_, params.height_control_point) * s_foot_dot * s_foot_dot
+                                                          + bezier_first_derivative(s_foot, pi_foot_RF_, pf_foot_RF_, params.height_control_point) * s_foot_ddot;
 
                     switch (step_phase){
                         case 0: {
                             ref_msg_.desiredSwingLegsPosition.data.at(0) = point_bezier_LH(0);
                             ref_msg_.desiredSwingLegsPosition.data.at(1) = point_bezier_LH(1);
                             ref_msg_.desiredSwingLegsPosition.data.at(2) = point_bezier_LH(2);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(0) = point_bezier_LH_dot(0);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(1) = point_bezier_LH_dot(1);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(2) = point_bezier_LH_dot(2);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(0) = point_bezier_LH_ddot(0);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(1) = point_bezier_LH_ddot(1);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(2) = point_bezier_LH_ddot(2);
                             ref_msg_.footContacts = {0,1,1,1};
                             break;
                         }
@@ -204,6 +263,12 @@ void MotionPlanner::plannerLoop() {
                             ref_msg_.desiredSwingLegsPosition.data.at(9) = point_bezier_RH(0);
                             ref_msg_.desiredSwingLegsPosition.data.at(10) = point_bezier_RH(1);
                             ref_msg_.desiredSwingLegsPosition.data.at(11) = point_bezier_RH(2);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(9) = point_bezier_RH_dot(0);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(10) = point_bezier_RH_dot(1);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(11) = point_bezier_RH_dot(2);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(9) = point_bezier_RH_ddot(0);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(10) = point_bezier_RH_ddot(1);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(11) = point_bezier_RH_ddot(2);
                             ref_msg_.footContacts = {1,1,1,0};
                             break;
                         }
@@ -211,6 +276,12 @@ void MotionPlanner::plannerLoop() {
                             ref_msg_.desiredSwingLegsPosition.data.at(3) = point_bezier_LF(0);
                             ref_msg_.desiredSwingLegsPosition.data.at(4) = point_bezier_LF(1);
                             ref_msg_.desiredSwingLegsPosition.data.at(5) = point_bezier_LF(2);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(3) = point_bezier_LF_dot(0);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(4) = point_bezier_LF_dot(1);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(5) = point_bezier_LF_dot(2);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(3) = point_bezier_LF_ddot(0);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(4) = point_bezier_LF_ddot(1);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(5) = point_bezier_LF_ddot(2);
                             ref_msg_.footContacts = {1,0,1,1};
                             break;
                         }
@@ -218,6 +289,12 @@ void MotionPlanner::plannerLoop() {
                             ref_msg_.desiredSwingLegsPosition.data.at(6) = point_bezier_RF(0);
                             ref_msg_.desiredSwingLegsPosition.data.at(7) = point_bezier_RF(1);
                             ref_msg_.desiredSwingLegsPosition.data.at(8) = point_bezier_RF(2);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(6) = point_bezier_RF_dot(0);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(7) = point_bezier_RF_dot(1);
+                            ref_msg_.desiredSwingLegsVelocity.data.at(8) = point_bezier_RF_dot(2);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(6) = point_bezier_RF_ddot(0);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(7) = point_bezier_RF_ddot(1);
+                            ref_msg_.desiredSwingLegsAcceleration.data.at(8) = point_bezier_RF_ddot(2);
                             ref_msg_.footContacts = {1,1,0,1};
                             break;
                         }
@@ -227,12 +304,20 @@ void MotionPlanner::plannerLoop() {
                     }
 
                     double s_body = 0.0;
+                    double s_body_dot = 0.0;
+                    double s_body_ddot = 0.0;
                     if (cycle_counter == 0) {
                         s_body = poly_body_start.evaluate(current_cycle_time);
+                        s_body_dot = poly_body_start.evaluateFirstDerivative(current_cycle_time);
+                        s_body_ddot = poly_body_start.evaluateSecondDerivative(current_cycle_time);
                     } else {
                         s_body = poly_body_continue.evaluate(current_cycle_time);
+                        s_body_dot = poly_body_continue.evaluateFirstDerivative(current_cycle_time);
+                        s_body_ddot = poly_body_continue.evaluateSecondDerivative(current_cycle_time);
                     }
                     Eigen::Vector3d point_segment_body = segment(s_body, pi_body_, pf_body_);
+                    Eigen::Vector3d point_segment_body_dot = (pf_body_ - pi_body_) * s_body_dot;
+                    Eigen::Vector3d point_segment_body_ddot = (pf_body_ - pi_body_) * s_body_ddot;
 
                     ref_msg_.desiredComPose.data.at(0) = point_segment_body(0);
                     ref_msg_.desiredComPose.data.at(1) = point_segment_body(1);
@@ -240,12 +325,21 @@ void MotionPlanner::plannerLoop() {
                     ref_msg_.desiredComPose.data.at(3) = 0.0;
                     ref_msg_.desiredComPose.data.at(4) = 0.0;
                     ref_msg_.desiredComPose.data.at(5) = yaw_;
-                    for (int i = 0 ; i < 6 ; ++i) {
-                        ref_msg_.desiredComVelocity.data.at(i) = 0.0;
-                    }
-                    for (int i = 0 ; i < 6 ; ++i) {
-                        ref_msg_.desiredComAcceleration.data.at(i) = 0.0;
-                    }
+
+                    ref_msg_.desiredComVelocity.data.at(0) = point_segment_body_dot(0);
+                    ref_msg_.desiredComVelocity.data.at(1) = point_segment_body_dot(1);
+                    ref_msg_.desiredComVelocity.data.at(2) = point_segment_body_dot(2);
+                    ref_msg_.desiredComVelocity.data.at(3) = 0.0;
+                    ref_msg_.desiredComVelocity.data.at(4) = 0.0;
+                    ref_msg_.desiredComVelocity.data.at(5) = yaw_rate_command_;
+
+                    ref_msg_.desiredComAcceleration.data.at(0) = point_segment_body_ddot(0);
+                    ref_msg_.desiredComAcceleration.data.at(1) = point_segment_body_ddot(1);
+                    ref_msg_.desiredComAcceleration.data.at(2) = point_segment_body_ddot(2);
+                    ref_msg_.desiredComAcceleration.data.at(3) = 0.0;
+                    ref_msg_.desiredComAcceleration.data.at(4) = 0.0;
+                    ref_msg_.desiredComAcceleration.data.at(5) = 0.0;
+
                     ref_pub_.publish(ref_msg_);
 
                     yaw_ += yaw_rate_command_* params.dt;
