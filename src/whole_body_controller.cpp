@@ -109,7 +109,6 @@ void WholeBodyController::setInitialState()
     {
         desiredPose_(i) = params.refData[i];
     }
-    ROS_INFO_STREAM("Loaded reference pose: " << desiredPose_.transpose());
 
     desiredCoMVelocity_.setZero();
     desiredCoMAcceleration_.setZero();
@@ -174,8 +173,13 @@ void WholeBodyController::referenceCallback(anymal_wbc::WbcReferenceMsg refMsg)
     {
         desiredSwingLegsAcceleration_(i) = refMsg.desiredSwingLegsAcceleration.data[i];
     }
+    isSwitchingFootState_ = false;
     for (int i = 0 ; i < numberOfLegs ; i++)
     {
+        if (footContacts_[i] != refMsg.footContacts[i])
+        {
+            isSwitchingFootState_ = true;
+        }
         footContacts_[i] = refMsg.footContacts[i];
     }
 }
@@ -285,6 +289,7 @@ void WholeBodyController::updateState()
     centroidGeneralizedBias_ = transformationMatrix_.inverse().transpose() * (computeCoriolisBias() +  massMatrix_ * transformationMatrixDotInverse_ * generalizedBaseVel); 
 
     computeDerivatives();
+
     transformationMatrixDotInverse_ = - transformationMatrix_.inverse() * transformationMatrixDot_ * transformationMatrix_.inverse();
 }
 
@@ -378,14 +383,19 @@ Eigen::Vector<double,3*numberOfLegs> WholeBodyController::computeSwingFootVeloci
 
 void WholeBodyController::computeDerivatives()
 {
-    const double timeStep = 1.0 / params.loopRate;
-
-    transformationMatrixDot_ = (transformationMatrix_ - oldTransformationMatrix_) / timeStep ; 
-    centroidStanceJacobianDot_ = (centroidStanceJacobian_ - oldCentroidStanceJacobian_) / timeStep ;
-    centroidSwingJacobianDot_ = (centroidSwingJacobian_ - oldCentroidSwingJacobian_) / timeStep ;
-
-    // todo: add filtering to the numerical derivative
-
+    if (isSwitchingFootState_)
+    {
+        transformationMatrixDot_.setZero();
+        centroidStanceJacobianDot_.setZero();
+        centroidSwingJacobianDot_.setZero();        
+    }
+    else
+    {
+        const double timeStep = 1.0 / params.loopRate;
+        transformationMatrixDot_ = (transformationMatrix_ - oldTransformationMatrix_) / timeStep ; 
+        centroidStanceJacobianDot_ = (centroidStanceJacobian_ - oldCentroidStanceJacobian_) / timeStep ;
+        centroidSwingJacobianDot_ = (centroidSwingJacobian_ - oldCentroidSwingJacobian_) / timeStep ;
+    }
     oldTransformationMatrix_ = transformationMatrix_;
     oldCentroidStanceJacobian_ = centroidStanceJacobian_;
     oldCentroidSwingJacobian_ = centroidSwingJacobian_;
@@ -512,14 +522,14 @@ void WholeBodyController::solveQP()
 
     if (firstControllerIteration_)
     {
-        quadraticProblem_.init( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(),
-                                nullptr, nullptr, qpMatrixbLB.data(), qpMatrixbUB.data(), nWSR, 0 );
+        qpReturnValue_ = quadraticProblem_.init( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(),
+                                                 nullptr, nullptr, qpMatrixbLB.data(), qpMatrixbUB.data(), nWSR, 0 );
         firstControllerIteration_ = false;
     }
     else
     {
-        quadraticProblem_.hotstart( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(), 
-                                    nullptr, nullptr, qpMatrixbLB.data(), qpMatrixbUB.data(), nWSR, 0 );
+        qpReturnValue_ = quadraticProblem_.hotstart( qpMatrixH.data(), qpMatrixg.data(), qpMatrixA.data(), 
+                                                     nullptr, nullptr, qpMatrixbLB.data(), qpMatrixbUB.data(), nWSR, 0 );
     }
     qpOASES::real_t xOpt[qpNumberOfVariables];
 	quadraticProblem_.getPrimalSolution( xOpt );
@@ -603,7 +613,25 @@ void WholeBodyController::publishTransform()
     tf::Quaternion q;
     q.setRPY(currentAttitude(0), currentAttitude(1), currentAttitude(2));  // roll, pitch, yaw
     transform_.setRotation(q);
-    broadcaster_.sendTransform(tf::StampedTransform(transform_, ros::Time::now(), "map", "base"));
+    static ros::Time last_broadcast_time = ros::Time(0);
+    ros::Time now = ros::Time::now();
+    // ensure monotonically increasing timestamps to avoid TF_REPEATED_DATA warnings
+    if (now == ros::Time(0) || now <= last_broadcast_time) {
+        now = last_broadcast_time + ros::Duration(1e-6);
+    }
+    last_broadcast_time = now;
+    broadcaster_.sendTransform(tf::StampedTransform(transform_, now, "map", "base"));
+}
+
+void WholeBodyController::terminate()
+{
+    ROS_INFO("Shutting down whole body controller...");
+    std_msgs::Float64MultiArray commandMsg;
+    for (int i = 0 ; i < numberOfJoints ; i++)
+    {
+        commandMsg.data.push_back(0.0);
+    } 
+    jointTorquePub_.publish(commandMsg);
 }
 
 void WholeBodyController::controlLoop()
@@ -611,7 +639,8 @@ void WholeBodyController::controlLoop()
     ros::Rate rosRate(params.loopRate);
 
     resetRobotSimState();
-    
+    ROS_INFO_STREAM("Loaded reference pose: " << desiredPose_.transpose());
+
     double time = 0.0;
     const double deltaTime = 1.0 / params.loopRate;
     long iteration = 0;
@@ -621,6 +650,13 @@ void WholeBodyController::controlLoop()
         updateState();
         solveQP();
         computeJointTorques();
+
+        if (qpReturnValue_ != qpOASES::SUCCESSFUL_RETURN)
+        {
+            ROS_WARN("QP did not solve!");
+            terminate();
+            break;
+        }
 
         // ROS_INFO_STREAM ("Elapsed time: " << time << " s");
         // ROS_INFO_STREAM ("Desired com position: " << desiredPose_.head<3>().transpose() );

@@ -67,8 +67,9 @@ class WholeBodyController
 
         void resetRobotSimState();
         void controlLoop();
-
         void publishTransform();
+        void terminate();
+
     private:
         ros::NodeHandle nh_;
         
@@ -147,6 +148,7 @@ class WholeBodyController
 
         // on-off foot contacts
         int footContacts_[numberOfLegs];
+        bool isSwitchingFootState_ = false;
 
         // numerical derivation
         Eigen::Matrix<double,6+numberOfJoints,6+numberOfJoints> oldTransformationMatrix_;
@@ -161,6 +163,7 @@ class WholeBodyController
         // quadratic problem
         qpOASES::SQProblem quadraticProblem_;
         Eigen::Vector<double,qpNumberOfVariables> qpSolution_;
+        qpOASES::returnValue qpReturnValue_;
 
         // tf
         tf::TransformBroadcaster broadcaster_;
