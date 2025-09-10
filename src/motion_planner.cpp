@@ -90,6 +90,8 @@ void MotionPlanner::input_callback(const geometry_msgs::Twist& msg) {
 MotionPlanner::MotionPlanner(){
     input_sub_ = nh_.subscribe("/cmd_vel", 1, &MotionPlanner::input_callback, this);
     ref_pub_ = nh_.advertise<anymal_wbc::WbcReferenceMsg>("/anymal/reference", 1);
+    
+    load_parameters();
 
     for (int i = 0 ; i < 6 ; ++i) {
         ref_msg_.desiredComPose.data.push_back(0.0);

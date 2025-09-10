@@ -39,15 +39,15 @@ class MotionPlanner {
         Eigen::Vector3d pf_foot_RF_;
 
         struct {
-            double step_length = 0.1; // Length of the step
-            double height_control_point = 0.1;
-            double x_offset = 0.50;
-            double y_offset = 0.33;
-            double step_duration = 0.2; // Duration of each step phase
-            double cycle_duration = 4 * step_duration; // Duration of the entire cycle (4 steps)
-            double body_height = 0.50;
-            double body_initial_velocity = 0.0;
-            double body_final_velocity = 0.40;
-            double dt = 0.01;
+            double step_length; // Length of the step
+            double height_control_point;
+            double x_offset;
+            double y_offset;
+            double step_duration; // Duration of each step phase
+            double cycle_duration; // Duration of the entire cycle (4 steps)
+            double body_height;
+            double body_initial_velocity;
+            double body_final_velocity;
+            double dt;
         } params;        
 };
